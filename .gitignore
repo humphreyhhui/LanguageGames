@@ -33,6 +33,14 @@ yarn-error.*
 # local env files
 .env*.local
 
+# Cursor MCP config (contains tokens/secrets)
+.cursor/mcp.json
+.cursor/run-supabase-mcp.sh
+.cursor/run-github-mcp.sh
+
+# GitHub CLI config (contains tokens)
+.gh-config/
+
 # typescript
 *.tsbuildinfo
 
