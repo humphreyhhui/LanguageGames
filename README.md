@@ -7,17 +7,42 @@ A competitive language learning mobile app where players compete in real-time tr
 - **Mobile App**: React Native (Expo) + NativeWind (Tailwind CSS)
 - **Backend**: Node.js (Express) + Socket.io
 - **Database/Auth**: Supabase (Postgres + Auth)
-- **LLM**: Ollama (server-side, Mistral/Llama for translation generation)
+- **LLM**: Ollama (server-side only — users never need this installed)
 - **State**: Zustand
 
-## Quick Start
+## Architecture
+
+```
+┌─────────────────────┐
+│  User's Phone / App │  (React Native)
+└─────────┬───────────┘
+          │ HTTP / WebSocket
+┌─────────▼───────────┐
+│  Your Server         │  (Node.js, port 3001)
+│  - Express API       │
+│  - Socket.io         │
+└─────────┬───────────┘
+          │ HTTP (localhost)
+┌─────────▼───────────┐     ┌───────────────────┐
+│  Ollama LLM          │     │  Supabase          │
+│  (port 11434)        │     │  (Auth, Postgres)  │
+└──────────────────────┘     └───────────────────┘
+```
+
+Users only need the app. All LLM processing happens on your server — Ollama generates translations, validates answers, and creates distractors without users ever needing to install anything.
+
+## For Users
+
+Download the app and create an account. That's it — no additional software needed.
+
+## Developer Setup
 
 ### Prerequisites
 
-- Node.js 18+
-- [Expo Go](https://expo.dev/go) on your phone (or iOS/Android simulator)
-- [Ollama](https://ollama.ai) installed and running
+- Node.js 20+
+- [Ollama](https://ollama.ai) installed on your server/dev machine
 - A [Supabase](https://supabase.com) project
+- Xcode (for iOS Simulator) or Expo Go on your phone
 
 ### 1. Set Up Supabase
 
@@ -32,16 +57,18 @@ Update credentials in:
 - `lib/constants.ts` — `SUPABASE_URL` and `SUPABASE_ANON_KEY`
 - `server/config.ts` — `SUPABASE_URL` and `SUPABASE_SERVICE_KEY`
 
-### 2. Set Up Ollama
+### 2. Set Up Ollama (Server-Side Only)
+
+Ollama runs on your server/dev machine. Users never interact with it directly.
 
 ```bash
 # Install Ollama (macOS)
 brew install ollama
 
-# Pull a model
-ollama pull mistral
+# Pull a model (qwen3:4b is lightweight and fast)
+ollama pull qwen3:4b
 
-# Start Ollama (runs on port 11434 by default)
+# Ollama starts automatically, or run:
 ollama serve
 ```
 
@@ -50,7 +77,7 @@ ollama serve
 ```bash
 cd server
 npm install
-npm run dev
+npx ts-node index.ts
 ```
 
 Server starts on `http://localhost:3001`.
@@ -60,10 +87,10 @@ Server starts on `http://localhost:3001`.
 ```bash
 # From project root
 npm install
-npx expo start
+npx expo start --ios    # iOS Simulator
+# or
+npx expo start          # QR code for Expo Go
 ```
-
-Scan the QR code with Expo Go, or press `i` for iOS simulator / `a` for Android emulator.
 
 ## Game Modes
 
@@ -74,7 +101,7 @@ Control a spaceship and shoot the asteroid with the correct translation. Combo m
 Type translations as fast as possible within a time limit. LLM validates answers including synonyms.
 
 ### Memory Match
-Classic card-flip game — match each word with its translation on a 4×4 grid. Compete on time.
+Classic card-flip game — match each word with its translation on a 4x4 grid. Compete on time.
 
 ### Wager Mode (Drinking Game)
 Bet how many words you can translate each round. Hit your wager for bonus points; miss it for a penalty.
@@ -115,4 +142,4 @@ Create Quizlet-like flashcard sets with your own word pairs, or use the AI auto-
 | `SUPABASE_URL` | Supabase project URL | — |
 | `SUPABASE_SERVICE_KEY` | Supabase service role key | — |
 | `OLLAMA_URL` | Ollama API URL | `http://localhost:11434` |
-| `OLLAMA_MODEL` | LLM model name | `mistral` |
+| `OLLAMA_MODEL` | LLM model name | `qwen3:4b` |

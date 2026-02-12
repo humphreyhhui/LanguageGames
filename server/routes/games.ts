@@ -1,32 +1,41 @@
 import { Router } from 'express';
 import { generatePairs, generatePairsWithDistractors, validateTranslation, generateCategoryWords } from '../services/ollama';
+import {
+  requireAuth,
+  validateLanguage,
+  validateDifficulty,
+  validateCount,
+  sanitizeText,
+} from '../middleware/security';
+import { llmLimiter } from '../index';
 
 export const gamesRoutes = Router();
 
-// Generate translation pairs for a game
-gamesRoutes.post('/pairs', async (req, res) => {
-  try {
-    const { fromLang, toLang, count, difficulty, withDistractors } = req.body;
+// All game routes require authentication
+gamesRoutes.use(requireAuth as any);
 
-    if (!fromLang || !toLang || !count) {
-      return res.status(400).json({ error: 'Missing required fields: fromLang, toLang, count' });
+// Generate translation pairs for a game
+gamesRoutes.post('/pairs', llmLimiter, async (req, res) => {
+  try {
+    const fromLang = validateLanguage(req.body.fromLang);
+    const toLang = validateLanguage(req.body.toLang);
+    const count = validateCount(req.body.count, 1, 30);
+    const difficulty = validateDifficulty(req.body.difficulty);
+    const withDistractors = Boolean(req.body.withDistractors);
+
+    if (!fromLang || !toLang) {
+      return res.status(400).json({ error: 'Invalid language codes. Use ISO 639-1 codes (en, es, fr, etc.)' });
+    }
+
+    if (fromLang === toLang) {
+      return res.status(400).json({ error: 'Source and target languages must be different' });
     }
 
     let pairs;
     if (withDistractors) {
-      pairs = await generatePairsWithDistractors(
-        fromLang,
-        toLang,
-        count || 10,
-        difficulty || 'medium'
-      );
+      pairs = await generatePairsWithDistractors(fromLang, toLang, count, difficulty);
     } else {
-      pairs = await generatePairs(
-        fromLang,
-        toLang,
-        count || 10,
-        difficulty || 'medium'
-      );
+      pairs = await generatePairs(fromLang, toLang, count, difficulty);
     }
 
     res.json({ pairs });
@@ -37,12 +46,15 @@ gamesRoutes.post('/pairs', async (req, res) => {
 });
 
 // Validate a translation answer
-gamesRoutes.post('/validate', async (req, res) => {
+gamesRoutes.post('/validate', llmLimiter, async (req, res) => {
   try {
-    const { source, userAnswer, correctAnswer, targetLang } = req.body;
+    const source = sanitizeText(req.body.source, 500);
+    const userAnswer = sanitizeText(req.body.userAnswer, 500);
+    const correctAnswer = sanitizeText(req.body.correctAnswer, 500);
+    const targetLang = validateLanguage(req.body.targetLang);
 
     if (!source || !userAnswer || !correctAnswer || !targetLang) {
-      return res.status(400).json({ error: 'Missing required fields' });
+      return res.status(400).json({ error: 'Missing or invalid required fields' });
     }
 
     const result = await validateTranslation(source, userAnswer, correctAnswer, targetLang);
@@ -54,10 +66,17 @@ gamesRoutes.post('/validate', async (req, res) => {
 });
 
 // Generate category words (for wager game)
-gamesRoutes.post('/category-words', async (req, res) => {
+gamesRoutes.post('/category-words', llmLimiter, async (req, res) => {
   try {
-    const { category, toLang, count } = req.body;
-    const words = await generateCategoryWords(category, toLang, count || 10);
+    const category = sanitizeText(req.body.category, 50);
+    const toLang = validateLanguage(req.body.toLang);
+    const count = validateCount(req.body.count, 1, 20);
+
+    if (!category || !toLang) {
+      return res.status(400).json({ error: 'Missing or invalid category or language' });
+    }
+
+    const words = await generateCategoryWords(category, toLang, count);
     res.json({ words });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate category words' });

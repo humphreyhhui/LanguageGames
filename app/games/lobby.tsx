@@ -1,24 +1,26 @@
 import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useGameStore } from '../../lib/stores/gameStore';
 import { useAuthStore } from '../../lib/stores/authStore';
 import { GAME_INFO, GameType } from '../../lib/types';
-import { getSocket, connectSocket } from '../../lib/socket';
+import { getSocket, connectAndAuthenticate } from '../../lib/socket';
+import { supabase } from '../../lib/supabase';
 import { SERVER_URL } from '../../lib/constants';
 import { colors, radii, type, card, button, buttonText, input } from '../../lib/theme';
 
 export default function LobbyScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ game?: string; mode?: string }>();
-  const { user, eloRatings } = useAuthStore();
+  const { user } = useAuthStore();
   const gameStore = useGameStore();
 
   const [selectedGame, setSelectedGame] = useState<GameType>((params.game as GameType) || 'race');
   const [roomCode, setRoomCode] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const isConnecting = useRef(false);
 
   const gameTypes: GameType[] = ['race', 'asteroid', 'match', 'wager'];
 
@@ -32,13 +34,46 @@ export default function LobbyScreen() {
     router.push(routes[gameType] || '/games/translation-race');
   };
 
+  /**
+   * Get an authenticated socket connection.
+   * Uses JWT — server verifies identity, never trusts client data.
+   */
+  const getAuthenticatedSocket = async () => {
+    if (isConnecting.current) return getSocket();
+    isConnecting.current = true;
+    try {
+      const socket = getSocket();
+      if (socket.connected && (socket as any).isAuthenticated) return socket;
+      const s = await connectAndAuthenticate();
+      (s as any).isAuthenticated = true;
+      return s;
+    } catch (error: any) {
+      Alert.alert('Connection Error', error.message || 'Failed to connect to server.');
+      throw error;
+    } finally {
+      isConnecting.current = false;
+    }
+  };
+
+  /**
+   * Get auth header for REST API calls.
+   */
+  const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return {
+      'Content-Type': 'application/json',
+      ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+    };
+  };
+
   const handlePractice = async () => {
     gameStore.setGameType(selectedGame);
     gameStore.setGameMode('unranked');
     try {
+      const headers = await getAuthHeaders();
       const response = await fetch(`${SERVER_URL}/api/games/pairs`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           fromLang: user?.native_language || 'en',
           toLang: user?.learning_language || 'es',
@@ -52,64 +87,70 @@ export default function LobbyScreen() {
         gameStore.setPairs(data.pairs);
         navigateToGame(selectedGame);
       } else {
-        Alert.alert('Error', 'Failed to generate pairs. Is the server running?');
+        Alert.alert('Error', data.error || 'Failed to generate pairs. Is the server running?');
       }
     } catch {
-      Alert.alert('Connection Error', 'Could not connect to server at localhost:3001.');
+      Alert.alert('Connection Error', 'Could not connect to server.');
     }
   };
 
-  const handleCreateRoom = () => {
+  const handleCreateRoom = async () => {
     if (!user) return Alert.alert('Sign In Required', 'Please sign in to play with friends.');
-    const socket = getSocket();
-    if (!socket.connected) connectSocket('');
-    socket.emit('authenticate', { userId: user.id, username: user.username, elo: Object.fromEntries(eloRatings.map((r) => [r.game_type, r.elo])) });
-    socket.emit('createRoom', { gameType: selectedGame });
-    socket.once('roomCreated', (data: { roomId: string; roomCode: string }) => {
-      gameStore.setGameType(selectedGame);
-      gameStore.setGameMode('friend');
-      gameStore.setRoomCode(data.roomCode);
-      setIsCreatingRoom(true);
-      socket.once('playerJoined', () => {
-        socket.once('gameStart', (gameData: { roomId: string; pairs: any[]; gameType: string }) => {
-          gameStore.startGame(gameData.pairs, gameData.roomId);
-          setIsCreatingRoom(false);
-          navigateToGame(gameData.gameType);
+    try {
+      const socket = await getAuthenticatedSocket();
+      socket.emit('createRoom', { gameType: selectedGame });
+      socket.once('roomCreated', (data: { roomId: string; roomCode: string }) => {
+        gameStore.setGameType(selectedGame);
+        gameStore.setGameMode('friend');
+        gameStore.setRoomCode(data.roomCode);
+        setIsCreatingRoom(true);
+        socket.once('playerJoined', () => {
+          socket.once('gameStart', (gameData: { roomId: string; pairs: any[]; gameType: string }) => {
+            gameStore.startGame(gameData.pairs, gameData.roomId);
+            setIsCreatingRoom(false);
+            navigateToGame(gameData.gameType);
+          });
         });
       });
-    });
+    } catch {
+      // Error already shown by getAuthenticatedSocket
+    }
   };
 
-  const handleJoinRoom = () => {
+  const handleJoinRoom = async () => {
     if (!user) return Alert.alert('Sign In Required', 'Please sign in to play with friends.');
     if (!roomCode.trim()) return Alert.alert('Enter Room Code', 'Please enter a room code.');
-    const socket = getSocket();
-    if (!socket.connected) connectSocket('');
-    socket.emit('authenticate', { userId: user.id, username: user.username, elo: Object.fromEntries(eloRatings.map((r) => [r.game_type, r.elo])) });
-    socket.emit('joinRoom', { roomCode: roomCode.trim().toUpperCase() });
-    socket.once('gameStart', (gameData: { roomId: string; pairs: any[]; gameType: string }) => {
-      gameStore.setGameType(gameData.gameType as GameType);
-      gameStore.setGameMode('friend');
-      gameStore.startGame(gameData.pairs, gameData.roomId);
-      navigateToGame(gameData.gameType);
-    });
-    socket.once('error', (data: { message: string }) => Alert.alert('Error', data.message));
+    try {
+      const socket = await getAuthenticatedSocket();
+      socket.emit('joinRoom', { roomCode: roomCode.trim().toUpperCase() });
+      socket.once('gameStart', (gameData: { roomId: string; pairs: any[]; gameType: string }) => {
+        gameStore.setGameType(gameData.gameType as GameType);
+        gameStore.setGameMode('friend');
+        gameStore.startGame(gameData.pairs, gameData.roomId);
+        navigateToGame(gameData.gameType);
+      });
+      socket.once('error', (data: { message: string }) => Alert.alert('Error', data.message));
+    } catch {
+      // Error already shown
+    }
   };
 
-  const handleRanked = () => {
+  const handleRanked = async () => {
     if (!user) return Alert.alert('Sign In Required', 'Please sign in for ranked play.');
     setIsSearching(true);
-    const socket = getSocket();
-    if (!socket.connected) connectSocket('');
-    socket.emit('authenticate', { userId: user.id, username: user.username, elo: Object.fromEntries(eloRatings.map((r) => [r.game_type, r.elo])) });
-    socket.emit('joinQueue', { gameType: selectedGame });
-    socket.once('matchFound', (data: { roomId: string; pairs: any[]; gameType: string }) => {
-      gameStore.setGameType(data.gameType as GameType);
-      gameStore.setGameMode('ranked');
-      gameStore.startGame(data.pairs, data.roomId);
+    try {
+      const socket = await getAuthenticatedSocket();
+      socket.emit('joinQueue', { gameType: selectedGame });
+      socket.once('matchFound', (data: { roomId: string; pairs: any[]; gameType: string }) => {
+        gameStore.setGameType(data.gameType as GameType);
+        gameStore.setGameMode('ranked');
+        gameStore.startGame(data.pairs, data.roomId);
+        setIsSearching(false);
+        navigateToGame(data.gameType);
+      });
+    } catch {
       setIsSearching(false);
-      navigateToGame(data.gameType);
-    });
+    }
   };
 
   const info = GAME_INFO[selectedGame];

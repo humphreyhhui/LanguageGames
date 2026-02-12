@@ -6,7 +6,6 @@ import {
   createRankedRoom,
   joinRoom,
   getRoom,
-  updateScore,
   startGame,
   endGame,
   deleteRoom,
@@ -14,11 +13,52 @@ import {
 } from '../services/matchmaking';
 import { generatePairs, generatePairsWithDistractors, validateTranslation } from '../services/ollama';
 import { saveGameSession } from '../services/gameSession';
+import {
+  verifySocketToken,
+  sanitizeText,
+  validateGameType,
+  checkSocketRateLimit,
+  clearSocketRateLimit,
+} from '../middleware/security';
+import { supabase } from '../config';
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
   username?: string;
   elo?: Record<string, number>;
+  isAuthenticated?: boolean;
+}
+
+/**
+ * Fetch the user's actual Elo ratings from the database.
+ * Never trust client-supplied Elo.
+ */
+async function fetchUserElo(userId: string): Promise<Record<string, number>> {
+  const { data } = await supabase
+    .from('elo_ratings')
+    .select('game_type, elo')
+    .eq('user_id', userId);
+
+  const eloMap: Record<string, number> = {};
+  if (data) {
+    for (const row of data) {
+      eloMap[row.game_type] = row.elo;
+    }
+  }
+  return eloMap;
+}
+
+/**
+ * Fetch the user's username from the database.
+ */
+async function fetchUsername(userId: string): Promise<string> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('username')
+    .eq('id', userId)
+    .single();
+
+  return data?.username || 'Unknown';
 }
 
 export function setupSocketHandlers(io: Server): void {
@@ -27,40 +67,81 @@ export function setupSocketHandlers(io: Server): void {
     console.log(`Client connected: ${socket.id}`);
 
     // ============================================
-    // Authentication
+    // Authentication — verify JWT server-side
     // ============================================
 
-    socket.on('authenticate', (data: { userId: string; username: string; elo: Record<string, number> }) => {
-      socket.userId = data.userId;
-      socket.username = data.username;
-      socket.elo = data.elo;
-      socket.emit('authenticated', { success: true });
+    socket.on('authenticate', async (data: { token: string }) => {
+      if (!data.token || typeof data.token !== 'string') {
+        return socket.emit('error', { message: 'Token required' });
+      }
+
+      const verified = await verifySocketToken(data.token);
+      if (!verified) {
+        return socket.emit('error', { message: 'Invalid or expired token' });
+      }
+
+      // Fetch real data from DB — never trust the client
+      const [elo, username] = await Promise.all([
+        fetchUserElo(verified.userId),
+        fetchUsername(verified.userId),
+      ]);
+
+      socket.userId = verified.userId;
+      socket.username = username;
+      socket.elo = elo;
+      socket.isAuthenticated = true;
+
+      socket.emit('authenticated', { success: true, username });
     });
+
+    /**
+     * Guard: ensure socket is authenticated before any game action.
+     */
+    function requireSocketAuth(): boolean {
+      if (!socket.isAuthenticated || !socket.userId || !socket.username) {
+        socket.emit('error', { message: 'Not authenticated. Send authenticate event first.' });
+        return false;
+      }
+      return true;
+    }
+
+    /**
+     * Guard: check rate limit for this socket.
+     */
+    function checkRate(maxPerWindow: number = 30): boolean {
+      if (!checkSocketRateLimit(socket.id, maxPerWindow)) {
+        socket.emit('error', { message: 'Too many actions. Slow down.' });
+        return false;
+      }
+      return true;
+    }
 
     // ============================================
     // Matchmaking Queue (Ranked)
     // ============================================
 
     socket.on('joinQueue', async (data: { gameType: string }) => {
-      if (!socket.userId || !socket.username) {
-        return socket.emit('error', { message: 'Not authenticated' });
+      if (!requireSocketAuth() || !checkRate(5)) return;
+
+      const gameType = validateGameType(data.gameType);
+      if (!gameType) {
+        return socket.emit('error', { message: 'Invalid game type' });
       }
 
-      const elo = socket.elo?.[data.gameType] ?? 1000;
+      const elo = socket.elo?.[gameType] ?? 1000;
 
       const result = joinQueue({
         socketId: socket.id,
-        userId: socket.userId,
-        username: socket.username,
+        userId: socket.userId!,
+        username: socket.username!,
         elo,
-        gameType: data.gameType,
+        gameType,
         joinedAt: Date.now(),
       });
 
       if (result.matched && result.opponent) {
-        // Create a ranked room
         const room = createRankedRoom(
-          data.gameType,
+          gameType,
           {
             socketId: result.opponent.socketId,
             userId: result.opponent.userId,
@@ -69,33 +150,29 @@ export function setupSocketHandlers(io: Server): void {
           },
           {
             socketId: socket.id,
-            userId: socket.userId,
-            username: socket.username,
+            userId: socket.userId!,
+            username: socket.username!,
             elo,
           }
         );
 
-        // Generate pairs for the game
         try {
-          const pairs = data.gameType === 'asteroid'
+          const pairs = gameType === 'asteroid'
             ? await generatePairsWithDistractors('en', 'es', 15, 'medium')
             : await generatePairs('en', 'es', 15, 'medium');
 
-          const startedRoom = startGame(room.roomId, pairs);
+          startGame(room.roomId, pairs);
 
-          // Join socket rooms
           socket.join(room.roomId);
           const opponentSocket = io.sockets.sockets.get(result.opponent.socketId);
           opponentSocket?.join(room.roomId);
 
-          // Notify both players
           io.to(room.roomId).emit('matchFound', {
             roomId: room.roomId,
             pairs,
-            gameType: data.gameType,
+            gameType,
           });
 
-          // Send opponent info to each player
           socket.emit('opponentInfo', {
             username: result.opponent.username,
             elo: result.opponent.elo,
@@ -104,7 +181,6 @@ export function setupSocketHandlers(io: Server): void {
             username: socket.username,
             elo,
           });
-
         } catch (error) {
           console.error('Failed to start matched game:', error);
           socket.emit('error', { message: 'Failed to generate game content' });
@@ -115,6 +191,7 @@ export function setupSocketHandlers(io: Server): void {
     });
 
     socket.on('leaveQueue', () => {
+      if (!requireSocketAuth()) return;
       leaveQueue(socket.id);
       socket.emit('queueLeft');
     });
@@ -124,16 +201,19 @@ export function setupSocketHandlers(io: Server): void {
     // ============================================
 
     socket.on('createRoom', (data: { gameType: string }) => {
-      if (!socket.userId || !socket.username) {
-        return socket.emit('error', { message: 'Not authenticated' });
+      if (!requireSocketAuth() || !checkRate(5)) return;
+
+      const gameType = validateGameType(data.gameType);
+      if (!gameType) {
+        return socket.emit('error', { message: 'Invalid game type' });
       }
 
-      const elo = socket.elo?.[data.gameType] ?? 1000;
+      const elo = socket.elo?.[gameType] ?? 1000;
 
-      const room = createRoom(data.gameType, {
+      const room = createRoom(gameType, {
         socketId: socket.id,
-        userId: socket.userId,
-        username: socket.username,
+        userId: socket.userId!,
+        username: socket.username!,
         elo,
       }, 'friend');
 
@@ -142,16 +222,20 @@ export function setupSocketHandlers(io: Server): void {
     });
 
     socket.on('joinRoom', async (data: { roomCode: string }) => {
-      if (!socket.userId || !socket.username) {
-        return socket.emit('error', { message: 'Not authenticated' });
+      if (!requireSocketAuth() || !checkRate(5)) return;
+
+      // Sanitize room code: alphanumeric only, max 10 chars
+      const roomCode = sanitizeText(data.roomCode, 10).replace(/[^a-zA-Z0-9]/g, '');
+      if (!roomCode) {
+        return socket.emit('error', { message: 'Invalid room code' });
       }
 
-      const elo = socket.elo?.['race'] ?? 1000; // default
+      const elo = socket.elo?.['race'] ?? 1000;
 
-      const room = joinRoom(data.roomCode, {
+      const room = joinRoom(roomCode, {
         socketId: socket.id,
-        userId: socket.userId,
-        username: socket.username,
+        userId: socket.userId!,
+        username: socket.username!,
         elo,
       });
 
@@ -161,13 +245,11 @@ export function setupSocketHandlers(io: Server): void {
 
       socket.join(room.roomId);
 
-      // Notify room creator
       io.to(room.roomId).emit('playerJoined', {
         roomId: room.roomId,
         player2: { username: socket.username, elo },
       });
 
-      // Generate pairs and start
       try {
         const pairs = room.gameType === 'asteroid'
           ? await generatePairsWithDistractors('en', 'es', 15, 'medium')
@@ -194,50 +276,67 @@ export function setupSocketHandlers(io: Server): void {
       roomId: string;
       questionIndex: number;
       answer: string;
-      source: string;
-      correctAnswer: string;
-      targetLang: string;
     }) => {
-      if (!socket.userId) return;
-
-      // Validate the answer
-      const validation = await validateTranslation(
-        data.source,
-        data.answer,
-        data.correctAnswer,
-        data.targetLang
-      );
+      if (!requireSocketAuth() || !checkRate(60)) return;
 
       const room = getRoom(data.roomId);
-      if (!room) return;
+      if (!room || !room.pairs) return;
 
-      // Update score if correct
+      // Server looks up the correct answer — NOT the client
+      const questionIndex = Math.floor(Number(data.questionIndex));
+      if (questionIndex < 0 || questionIndex >= room.pairs.length) return;
+
+      const pair = room.pairs[questionIndex];
+      const userAnswer = sanitizeText(data.answer, 500);
+      if (!userAnswer) return;
+
+      // Validate the answer using the server's copy of the correct answer
+      const validation = await validateTranslation(
+        pair.source,
+        userAnswer,
+        pair.target,
+        'es' // TODO: get from room config
+      );
+
+      // Update score server-side
       const currentPlayer = room.player1.userId === socket.userId ? room.player1 : room.player2;
       if (currentPlayer && validation.correct) {
         currentPlayer.score += 1;
       }
 
-      // Send result to the answering player
       socket.emit('answerResult', {
-        questionIndex: data.questionIndex,
+        questionIndex,
         correct: validation.correct,
         feedback: validation.feedback,
         newScore: currentPlayer?.score ?? 0,
       });
 
-      // Send score update to the room
       io.to(data.roomId).emit('scoreUpdate', {
         player1Score: room.player1.score,
         player2Score: room.player2?.score ?? 0,
       });
     });
 
-    // Simple score update (for games that validate client-side like asteroid)
+    // Score update for client-validated games (asteroid) — server caps increments
     socket.on('updateScore', (data: { roomId: string; score: number }) => {
-      if (!socket.userId) return;
+      if (!requireSocketAuth() || !checkRate(60)) return;
 
-      const room = updateScore(data.roomId, socket.userId, data.score);
+      const room = getRoom(data.roomId);
       if (!room) return;
+
+      const currentPlayer = room.player1.userId === socket.userId ? room.player1 : room.player2;
+      if (!currentPlayer) return;
+
+      // Only allow score to increase by 1 at a time (prevents jumps to 99999)
+      const newScore = Math.floor(Number(data.score));
+      if (isNaN(newScore) || newScore < 0) return;
+      if (newScore > currentPlayer.score + 1) {
+        // Suspicious: score jumped more than 1
+        console.warn(`Suspicious score jump from ${currentPlayer.score} to ${newScore} by ${socket.userId}`);
+        currentPlayer.score += 1; // only allow +1
+      } else {
+        currentPlayer.score = newScore;
+      }
 
       io.to(data.roomId).emit('scoreUpdate', {
         player1Score: room.player1.score,
@@ -250,13 +349,20 @@ export function setupSocketHandlers(io: Server): void {
     // ============================================
 
     socket.on('endGame', async (data: { roomId: string }) => {
+      if (!requireSocketAuth() || !checkRate(5)) return;
+
       const room = getRoom(data.roomId);
       if (!room || !room.player2) return;
+
+      // Only players in the room can end the game
+      if (room.player1.userId !== socket.userId && room.player2.userId !== socket.userId) {
+        return socket.emit('error', { message: 'You are not in this game' });
+      }
 
       const endedRoom = endGame(data.roomId);
       if (!endedRoom || !endedRoom.player2) return;
 
-      const p2 = endedRoom.player2; // capture for TypeScript narrowing
+      const p2 = endedRoom.player2;
 
       const durationMs = endedRoom.startedAt
         ? Date.now() - endedRoom.startedAt
@@ -280,7 +386,6 @@ export function setupSocketHandlers(io: Server): void {
               ? p2.userId
               : null;
 
-        // Notify player 1
         const p1Socket = io.sockets.sockets.get(endedRoom.player1.socketId);
         p1Socket?.emit('gameResult', {
           winner: winnerId,
@@ -290,7 +395,6 @@ export function setupSocketHandlers(io: Server): void {
           newElo: result.eloResult?.player1NewElo ?? endedRoom.player1.elo,
         });
 
-        // Notify player 2
         const p2Socket = io.sockets.sockets.get(p2.socketId);
         p2Socket?.emit('gameResult', {
           winner: winnerId,
@@ -303,7 +407,6 @@ export function setupSocketHandlers(io: Server): void {
         console.error('Failed to save game session:', error);
       }
 
-      // Clean up room after a delay
       setTimeout(() => deleteRoom(data.roomId), 60000);
     });
 
@@ -313,11 +416,9 @@ export function setupSocketHandlers(io: Server): void {
 
     socket.on('disconnect', () => {
       console.log(`Client disconnected: ${socket.id}`);
-
-      // Remove from matchmaking queue
       leaveQueue(socket.id);
+      clearSocketRateLimit(socket.id);
 
-      // Handle rooms
       const affectedRooms = removePlayerFromRooms(socket.id);
       for (const roomId of affectedRooms) {
         io.to(roomId).emit('opponentDisconnected', { roomId });
