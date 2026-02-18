@@ -24,6 +24,7 @@ export interface QueueEntry {
   elo: number;
   gameType: string;
   joinedAt: number;
+  botFallbackMs?: number;
 }
 
 export interface GameRoom {
@@ -137,8 +138,9 @@ function runMatchmakingTick(): void {
     for (let i = 0; i < queue.length; i++) {
       const entry = queue[i];
       const waitMs = now - entry.joinedAt;
+      const fallbackMs = entry.botFallbackMs ?? MATCHMAKING_BOT_FALLBACK_MS;
 
-      if (waitMs >= MATCHMAKING_BOT_FALLBACK_MS) {
+      if (waitMs >= fallbackMs) {
         queue.splice(i, 1);
         matchmakingQueue.set(gameType, queue);
         i--;
@@ -193,7 +195,7 @@ function emitQueueStatus(): void {
           timeWaitedMs: waitMs,
           currentRange: range === Infinity ? 9999 : range,
           queueSize: queue.length,
-          botFallbackInMs: Math.max(0, MATCHMAKING_BOT_FALLBACK_MS - waitMs),
+          botFallbackInMs: Math.max(0, (entry.botFallbackMs ?? MATCHMAKING_BOT_FALLBACK_MS) - waitMs),
         });
       }
     }

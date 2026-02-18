@@ -1,26 +1,31 @@
 import { View, Text, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useGameStore } from '../../lib/stores/gameStore';
 import { useAuthStore } from '../../lib/stores/authStore';
 import { GAME_INFO, GameType } from '../../lib/types';
+import { pickQuickPlayGame } from '../../lib/utils/quickPlay';
 import { getSocket, connectAndAuthenticate } from '../../lib/socket';
 import { supabase } from '../../lib/supabase';
 import { SERVER_URL } from '../../lib/constants';
 import { colors, radii, type, card, button, buttonText, input } from '../../lib/theme';
 
+const QUICK_PLAY_BOT_FALLBACK_MS = 5000;
+
 export default function LobbyScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ game?: string; mode?: string }>();
-  const { user } = useAuthStore();
+  const { user, eloRatings } = useAuthStore();
   const gameStore = useGameStore();
 
+  const isQuickPlay = params.mode === 'quick';
   const [selectedGame, setSelectedGame] = useState<GameType>((params.game as GameType) || 'race');
   const [roomCode, setRoomCode] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const isConnecting = useRef(false);
+  const quickPlayStarted = useRef(false);
 
   const gameTypes: GameType[] = ['race', 'asteroid', 'match', 'wager'];
 
@@ -135,6 +140,69 @@ export default function LobbyScreen() {
     }
   };
 
+  useEffect(() => {
+    if (!isQuickPlay || quickPlayStarted.current) return;
+    quickPlayStarted.current = true;
+
+    const run = async () => {
+      if (!user) {
+        Alert.alert('Sign In Required', 'Please sign in to use Quick Play.');
+        router.back();
+        return;
+      }
+      setIsSearching(true);
+      try {
+        let queueSizes: Record<string, number> | undefined;
+        try {
+          const res = await fetch(`${SERVER_URL}/api/matchmaking/queue-sizes`);
+          if (res.ok) queueSizes = await res.json();
+        } catch {
+          // Ignore — use elo fallback
+        }
+        const game = pickQuickPlayGame(eloRatings, queueSizes);
+        setSelectedGame(game);
+
+        const socket = await getAuthenticatedSocket();
+        socket.emit('joinQueue', { gameType: game, botFallbackMs: QUICK_PLAY_BOT_FALLBACK_MS });
+
+        socket.once('matchFound', (data: { roomId: string; pairs: any[]; gameType: string }) => {
+          gameStore.setGameType(data.gameType as GameType);
+          gameStore.setGameMode('ranked');
+          gameStore.startGame(data.pairs, data.roomId);
+          setIsSearching(false);
+          navigateToGame(data.gameType);
+        });
+        socket.once('botMatch', (data: { roomId: string; pairs: any[]; gameType: string; botConfig: { accuracy: number; name: string } }) => {
+          gameStore.setGameType(data.gameType as GameType);
+          gameStore.setGameMode('unranked');
+          gameStore.setOpponent({ username: data.botConfig.name, elo: 1000 });
+          gameStore.startGame(data.pairs, data.roomId);
+          setIsSearching(false);
+          navigateToGame(data.gameType);
+        });
+        socket.once('error', (data: { message: string }) => {
+          quickPlayStarted.current = false;
+          setIsSearching(false);
+          Alert.alert('Error', data.message);
+        });
+      } catch {
+        quickPlayStarted.current = false;
+        setIsSearching(false);
+      }
+    };
+    run();
+    return () => {
+      getSocket().emit('leaveQueue');
+    };
+  }, [isQuickPlay]);
+
+  const handleQuickPlayCancel = () => {
+    quickPlayStarted.current = false;
+    setIsSearching(false);
+    getSocket().emit('leaveQueue');
+    router.back();
+  };
+
   const handleRanked = async () => {
     if (!user) return Alert.alert('Sign In Required', 'Please sign in for ranked play.');
     setIsSearching(true);
@@ -165,6 +233,31 @@ export default function LobbyScreen() {
   };
 
   const info = GAME_INFO[selectedGame];
+
+  if (isQuickPlay) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }}>
+        <View style={{ flex: 1, paddingHorizontal: 20, paddingTop: 16 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
+            <TouchableOpacity onPress={handleQuickPlayCancel} style={{ marginRight: 16 }}>
+              <Text style={{ fontSize: 28, color: colors.silver.white }}>‹</Text>
+            </TouchableOpacity>
+            <Text style={type.title}>Quick Play</Text>
+          </View>
+          <View style={{ ...card, backgroundColor: colors.blue.dark, borderColor: colors.blue.bright + '30', padding: 32, alignItems: 'center', justifyContent: 'center', flex: 1 }}>
+            <ActivityIndicator color={colors.blue.light} size="large" />
+            <Text style={{ ...type.headline, marginTop: 20 }}>Finding game...</Text>
+            <Text style={{ ...type.footnote, marginTop: 8, textAlign: 'center' }}>
+              Matching by Elo · Bot in 5s if no opponent
+            </Text>
+            <TouchableOpacity onPress={handleQuickPlayCancel} style={{ marginTop: 24 }}>
+              <Text style={{ fontSize: 14, color: colors.error }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }}>

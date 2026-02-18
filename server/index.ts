@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { setupSocketHandlers } from './socket/handlers';
 import { authRoutes } from './routes/auth';
 import { gamesRoutes } from './routes/games';
+import { matchmakingRoutes } from './routes/matchmaking';
 import { pairsRoutes } from './routes/pairs';
 import { statsRoutes } from './routes/stats';
 
@@ -73,6 +74,7 @@ app.get('/health', (_req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/games', gamesRoutes);
+app.use('/api/matchmaking', matchmakingRoutes);
 app.use('/api/pairs', pairsRoutes);
 app.use('/api/stats', statsRoutes);
 

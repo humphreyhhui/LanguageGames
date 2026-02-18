@@ -121,7 +121,7 @@ export function setupSocketHandlers(io: Server): void {
     // Matchmaking Queue (Ranked)
     // ============================================
 
-    socket.on('joinQueue', async (data: { gameType: string }) => {
+    socket.on('joinQueue', async (data: { gameType: string; botFallbackMs?: number }) => {
       if (!requireSocketAuth() || !checkRate(5)) return;
 
       const gameType = validateGameType(data.gameType);
@@ -131,14 +131,19 @@ export function setupSocketHandlers(io: Server): void {
 
       const elo = socket.elo?.[gameType] ?? 1000;
 
-      joinQueue({
+      const entry = {
         socketId: socket.id,
         userId: socket.userId!,
         username: socket.username!,
         elo,
         gameType,
         joinedAt: Date.now(),
-      });
+        ...(typeof data.botFallbackMs === 'number' && data.botFallbackMs > 0
+          ? { botFallbackMs: data.botFallbackMs }
+          : {}),
+      };
+
+      joinQueue(entry);
 
       socket.emit('queueJoined', { position: 1 });
     });
