@@ -18,18 +18,11 @@ const server = http.createServer(app);
 // Helmet sets various HTTP headers for security
 app.use(helmet());
 
-// CORS: restrict to known origins (add your production domain later)
-const ALLOWED_ORIGINS = [
-  'http://localhost:8081',       // Expo dev server
-  'http://localhost:19006',      // Expo web
-  'exp://192.168.1.88:8081',    // Expo Go on LAN
-];
-
+// CORS: allow localhost and any exp:// (Expo) — works across WiFi changes
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
-    if (ALLOWED_ORIGINS.some((o) => origin.startsWith(o) || origin === o)) {
+    if (origin.startsWith('exp://') || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
       return callback(null, true);
     }
     callback(new Error('Not allowed by CORS'));
@@ -65,7 +58,7 @@ const io = new Server(server, {
   cors: {
     origin: (origin, callback) => {
       if (!origin) return callback(null, true);
-      if (ALLOWED_ORIGINS.some((o) => origin.startsWith(o) || origin === o)) {
+      if (origin.startsWith('exp://') || origin.startsWith('http://localhost') || origin.startsWith('http://127.0.0.1')) {
         return callback(null, true);
       }
       callback(new Error('Not allowed by CORS'));

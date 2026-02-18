@@ -148,6 +148,17 @@ export default function LobbyScreen() {
         setIsSearching(false);
         navigateToGame(data.gameType);
       });
+      socket.once('botMatch', (data: { roomId: string; pairs: any[]; gameType: string; botConfig: { accuracy: number; name: string } }) => {
+        gameStore.setGameType(data.gameType as GameType);
+        gameStore.setGameMode('unranked');
+        gameStore.setOpponent({ username: data.botConfig.name, elo: 1000 });
+        gameStore.startGame(data.pairs, data.roomId);
+        setIsSearching(false);
+        navigateToGame(data.gameType);
+      });
+      socket.on('queueStatus', (data: { timeWaitedMs: number; currentRange: number; botFallbackInMs: number }) => {
+        // Optional: could show "Searching... Xs, range ±Y, bot in Zs" in UI
+      });
     } catch {
       setIsSearching(false);
     }

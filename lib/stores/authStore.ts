@@ -38,16 +38,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       if (profileError) throw profileError;
 
-      // Create default Elo ratings for each game type
-      const gameTypes = ['asteroid', 'race', 'match', 'wager'];
-      const eloInserts = gameTypes.map((gt) => ({
-        user_id: authData.user!.id,
-        game_type: gt,
-        elo: 1000,
-        peak_elo: 1000,
-      }));
-      await supabase.from('elo_ratings').insert(eloInserts);
-
+      // Elo ratings are created by DB trigger (handle_new_profile) on profile insert
       await get().fetchProfile();
     }
   },

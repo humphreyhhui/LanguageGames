@@ -3,13 +3,14 @@ import {
   joinQueue,
   leaveQueue,
   createRoom,
-  createRankedRoom,
   joinRoom,
   getRoom,
   startGame,
   endGame,
   deleteRoom,
   removePlayerFromRooms,
+  startMatchmakingLoop,
+  getBotConfig,
 } from '../services/matchmaking';
 import { generatePairs, generatePairsWithDistractors, validateTranslation } from '../services/ollama';
 import { saveGameSession } from '../services/gameSession';
@@ -130,7 +131,7 @@ export function setupSocketHandlers(io: Server): void {
 
       const elo = socket.elo?.[gameType] ?? 1000;
 
-      const result = joinQueue({
+      joinQueue({
         socketId: socket.id,
         userId: socket.userId!,
         username: socket.username!,
@@ -139,55 +140,7 @@ export function setupSocketHandlers(io: Server): void {
         joinedAt: Date.now(),
       });
 
-      if (result.matched && result.opponent) {
-        const room = createRankedRoom(
-          gameType,
-          {
-            socketId: result.opponent.socketId,
-            userId: result.opponent.userId,
-            username: result.opponent.username,
-            elo: result.opponent.elo,
-          },
-          {
-            socketId: socket.id,
-            userId: socket.userId!,
-            username: socket.username!,
-            elo,
-          }
-        );
-
-        try {
-          const pairs = gameType === 'asteroid'
-            ? await generatePairsWithDistractors('en', 'es', 15, 'medium')
-            : await generatePairs('en', 'es', 15, 'medium');
-
-          startGame(room.roomId, pairs);
-
-          socket.join(room.roomId);
-          const opponentSocket = io.sockets.sockets.get(result.opponent.socketId);
-          opponentSocket?.join(room.roomId);
-
-          io.to(room.roomId).emit('matchFound', {
-            roomId: room.roomId,
-            pairs,
-            gameType,
-          });
-
-          socket.emit('opponentInfo', {
-            username: result.opponent.username,
-            elo: result.opponent.elo,
-          });
-          opponentSocket?.emit('opponentInfo', {
-            username: socket.username,
-            elo,
-          });
-        } catch (error) {
-          console.error('Failed to start matched game:', error);
-          socket.emit('error', { message: 'Failed to generate game content' });
-        }
-      } else {
-        socket.emit('queueJoined', { position: 1 });
-      }
+      socket.emit('queueJoined', { position: 1 });
     });
 
     socket.on('leaveQueue', () => {
@@ -369,11 +322,12 @@ export function setupSocketHandlers(io: Server): void {
         : 0;
 
       try {
+        const isBotMatch = endedRoom.mode === 'bot_fallback' || p2.userId.startsWith('bot_');
         const result = await saveGameSession({
           gameType: endedRoom.gameType,
           mode: endedRoom.mode,
           player1Id: endedRoom.player1.userId,
-          player2Id: p2.userId,
+          player2Id: isBotMatch ? null : p2.userId,
           player1Score: endedRoom.player1.score,
           player2Score: p2.score,
           durationMs,
@@ -425,4 +379,73 @@ export function setupSocketHandlers(io: Server): void {
       }
     });
   });
+
+  const onHumanMatch = async (
+    room: { roomId: string; gameType: string },
+    player1: { socketId: string; userId: string; username: string; elo: number },
+    player2: { socketId: string; userId: string; username: string; elo: number },
+    gameType: string
+  ) => {
+    try {
+      const pairs =
+        gameType === 'asteroid'
+          ? await generatePairsWithDistractors('en', 'es', 15, 'medium')
+          : await generatePairs('en', 'es', 15, 'medium');
+
+      startGame(room.roomId, pairs);
+
+      const s1 = io.sockets.sockets.get(player1.socketId);
+      const s2 = io.sockets.sockets.get(player2.socketId);
+      s1?.join(room.roomId);
+      s2?.join(room.roomId);
+
+      io.to(room.roomId).emit('matchFound', {
+        roomId: room.roomId,
+        pairs,
+        gameType,
+      });
+
+      s1?.emit('opponentInfo', { username: player2.username, elo: player2.elo });
+      s2?.emit('opponentInfo', { username: player1.username, elo: player1.elo });
+    } catch (error) {
+      console.error('Failed to start matched game:', error);
+      const s1 = io.sockets.sockets.get(player1.socketId);
+      const s2 = io.sockets.sockets.get(player2.socketId);
+      s1?.emit('error', { message: 'Failed to generate game content' });
+      s2?.emit('error', { message: 'Failed to generate game content' });
+    }
+  };
+
+  const onBotMatch = async (
+    room: { roomId: string; gameType: string },
+    entry: { socketId: string; userId: string; username: string; elo: number },
+    gameType: string
+  ) => {
+    try {
+      const pairs =
+        gameType === 'asteroid'
+          ? await generatePairsWithDistractors('en', 'es', 15, 'medium')
+          : await generatePairs('en', 'es', 15, 'medium');
+
+      startGame(room.roomId, pairs);
+
+      const socket = io.sockets.sockets.get(entry.socketId);
+      socket?.join(room.roomId);
+
+      const botConfig = getBotConfig(entry.elo);
+      socket?.emit('botMatch', {
+        roomId: room.roomId,
+        pairs,
+        gameType,
+        botConfig,
+      });
+      socket?.emit('opponentInfo', { username: botConfig.name, elo: entry.elo });
+    } catch (error) {
+      console.error('Failed to start bot game:', error);
+      const socket = io.sockets.sockets.get(entry.socketId);
+      socket?.emit('error', { message: 'Failed to generate game content' });
+    }
+  };
+
+  startMatchmakingLoop(io, onHumanMatch, onBotMatch);
 }

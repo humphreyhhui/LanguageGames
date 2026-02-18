@@ -9,13 +9,15 @@ export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 
 // Game constants
 export const DEFAULT_ELO = 1000;
-export const ELO_K_FACTOR_NEW = 32;
-export const ELO_K_FACTOR_ESTABLISHED = 16;
-export const GAMES_UNTIL_ESTABLISHED = 30;
+export const ELO_K_PROVISIONAL = 40;
+export const ELO_K_DEVELOPING = 32;
+export const ELO_K_ESTABLISHED = 20;
+export const ELO_GAMES_PROVISIONAL = 15;
+export const ELO_GAMES_ESTABLISHED = 30;
 
 // Matchmaking
-export const ELO_MATCH_RANGE = 200;
-export const MATCHMAKING_TIMEOUT_MS = 30000;
+export const MATCHMAKING_BOT_FALLBACK_MS = 60000;
+export const MATCHMAKING_RANGE_SCHEDULE_MS = [0, 10000, 20000, 30000, 45000] as const;
 
 // Game-specific
 export const TRANSLATION_RACE_TIME_LIMIT = 90; // seconds

@@ -126,6 +126,54 @@ export default function HomeScreen() {
           })}
         </View>
 
+        {/* Test Modes */}
+        <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
+          <Text style={{ ...type.title, marginBottom: 6 }}>
+            Developer
+          </Text>
+          <Text style={{ ...type.footnote, marginBottom: 14 }}>
+            Test games vs bots. Tracks LLM, server & Supabase latency.
+          </Text>
+
+          {[
+            { route: '/games/translation-race-test', icon: '⚡', title: 'Translation Race', desc: 'Type translations, server validate latency' },
+            { route: '/games/asteroid-shooter-test', icon: '🚀', title: 'Asteroid Shooter', desc: 'Shoot asteroids, LLM pair+distractor gen' },
+            { route: '/games/memory-match-test', icon: '🧠', title: 'Memory Match', desc: 'Turn-based vs bot, LLM pair gen timing' },
+            { route: '/games/wager-test', icon: '🎲', title: 'Wager Mode', desc: 'Per-round LLM pair gen + validate timing' },
+            { route: '/games/elo-matchmaking-test', icon: '📊', title: 'Elo Matchmaking', desc: 'Simulate Elo, K-factors, queue expansion, bot fallback' },
+          ].map((item, idx) => (
+            <TouchableOpacity
+              key={item.route}
+              onPress={() => router.push(item.route)}
+              activeOpacity={0.8}
+              style={{ marginBottom: idx < 4 ? 8 : 0 }}
+            >
+              <View
+                style={{
+                  ...card,
+                  backgroundColor: colors.bg.tertiary,
+                  borderColor: colors.warning + '30',
+                  padding: 16,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                }}
+              >
+                <Text style={{ fontSize: 24 }}>{item.icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ ...type.headline, color: colors.warning, fontSize: 15 }}>
+                    Test: {item.title}
+                  </Text>
+                  <Text style={{ ...type.footnote, marginTop: 1 }}>
+                    {item.desc}
+                  </Text>
+                </View>
+                <Text style={{ fontSize: 16, color: colors.silver.mid }}>›</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         {/* Study Sets */}
         <View style={{ paddingHorizontal: 20, marginTop: 32 }}>
           <Text style={{ ...type.title, marginBottom: 14 }}>
