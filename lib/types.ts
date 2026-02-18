@@ -17,7 +17,6 @@ export type GameType = 'asteroid' | 'race' | 'match' | 'wager';
 export type GameMode = 'ranked' | 'unranked' | 'friend';
 
 export interface EloRating {
-  id: string;
   user_id: string;
   game_type: GameType;
   elo: number;

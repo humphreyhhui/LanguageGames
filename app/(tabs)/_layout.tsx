@@ -13,6 +13,7 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
     <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 4 }}>
       <Text style={{ fontSize: 22 }}>{icons[name] || '•'}</Text>
       <Text
+        numberOfLines={1}
         style={{
           fontSize: 10,
           fontWeight: focused ? '600' : '400',

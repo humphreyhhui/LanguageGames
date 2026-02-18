@@ -7,7 +7,7 @@ import {
   validateCount,
   sanitizeText,
 } from '../middleware/security';
-import { llmLimiter } from '../index';
+import { llmLimiter } from '../rateLimit';
 
 export const gamesRoutes = Router();
 

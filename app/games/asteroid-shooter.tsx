@@ -10,7 +10,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGameStore } from '../../lib/stores/gameStore';
+import { useAuthStore } from '../../lib/stores/authStore';
 import Timer from '../../components/Timer';
+import AdBanner from '../../components/AdBanner';
+import { shouldShowAd } from '../../lib/adHelpers';
 import { ASTEROID_GAME_DURATION } from '../../lib/constants';
 import { TranslationPair } from '../../lib/types';
 import { colors, radii, type, card, button, buttonText } from '../../lib/theme';
@@ -40,6 +43,7 @@ interface Bullet {
 export default function AsteroidShooterScreen() {
   const router = useRouter();
   const { pairs, playerScore, isGameOver, submitAnswer, endGame, resetGame, opponent, opponentScore } = useGameStore();
+  const user = useAuthStore((s) => s.user);
 
   const [shipX, setShipX] = useState(SCREEN_WIDTH / 2 - SHIP_SIZE / 2);
   const [asteroids, setAsteroids] = useState<Asteroid[]>([]);
@@ -49,6 +53,7 @@ export default function AsteroidShooterScreen() {
   const [gameStarted, setGameStarted] = useState(false);
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [showHit, setShowHit] = useState<{ correct: boolean; word: string } | null>(null);
+  const [adDismissed, setAdDismissed] = useState(false);
 
   const asteroidIdRef = useRef(0);
   const bulletIdRef = useRef(0);
@@ -253,6 +258,26 @@ export default function AsteroidShooterScreen() {
 
   // Game Over
   if (isGameOver) {
+    const accuracy = pairs.length > 0 ? Math.round((playerScore / pairs.length) * 100) : 0;
+    const showAd = !adDismissed && user?.id && shouldShowAd({
+      hasOpponent: !!opponent,
+      playerScore,
+      opponentScore,
+      accuracy,
+    });
+
+    if (showAd) {
+      return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }}>
+          <AdBanner
+            userId={user!.id}
+            gameType="asteroid"
+            onDismiss={() => setAdDismissed(true)}
+          />
+        </SafeAreaView>
+      );
+    }
+
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary, justifyContent: 'center', alignItems: 'center', padding: 20 }}>
         <Text style={{ fontSize: 48, marginBottom: 12 }}>🚀</Text>

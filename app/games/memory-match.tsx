@@ -3,7 +3,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGameStore } from '../../lib/stores/gameStore';
+import { useAuthStore } from '../../lib/stores/authStore';
 import Timer from '../../components/Timer';
+import AdBanner from '../../components/AdBanner';
+import { shouldShowAd } from '../../lib/adHelpers';
 import { getSocket } from '../../lib/socket';
 import { colors, radii, type, card, button, buttonText } from '../../lib/theme';
 
@@ -24,6 +27,7 @@ interface Card {
 export default function MemoryMatchScreen() {
   const router = useRouter();
   const { pairs, playerScore, opponentScore, isGameOver, submitAnswer, endGame, resetGame, roomId, opponent } = useGameStore();
+  const user = useAuthStore((s) => s.user);
 
   const [cards, setCards] = useState<Card[]>([]);
   const [selectedCards, setSelectedCards] = useState<number[]>([]);
@@ -34,6 +38,7 @@ export default function MemoryMatchScreen() {
   const [isTimerActive, setIsTimerActive] = useState(false);
   const [startTime, setStartTime] = useState(0);
   const [elapsed, setElapsed] = useState(0);
+  const [adDismissed, setAdDismissed] = useState(false);
 
   const flipAnims = useRef<Animated.Value[]>([]);
 
@@ -194,6 +199,24 @@ export default function MemoryMatchScreen() {
   // Game Over
   if (isGameOver) {
     const accuracy = attempts > 0 ? Math.round((matches / attempts) * 100) : 0;
+    const showAd = !adDismissed && user?.id && shouldShowAd({
+      hasOpponent: !!opponent,
+      playerScore,
+      opponentScore,
+      accuracy,
+    });
+
+    if (showAd) {
+      return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }}>
+          <AdBanner
+            userId={user!.id}
+            gameType="match"
+            onDismiss={() => setAdDismissed(true)}
+          />
+        </SafeAreaView>
+      );
+    }
 
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary, justifyContent: 'center', alignItems: 'center', padding: 20 }}>

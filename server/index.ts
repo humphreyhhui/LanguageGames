@@ -45,13 +45,6 @@ const globalLimiter = rateLimit({
 });
 app.use(globalLimiter);
 
-// Stricter rate limit for LLM-heavy endpoints
-export const llmLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 10, // 10 LLM calls per minute per IP
-  message: { error: 'Too many AI requests, please slow down' },
-});
-
 // ── Socket.io ─────────────────────────────────────────────────
 
 const io = new Server(server, {

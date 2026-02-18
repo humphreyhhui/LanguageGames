@@ -5,6 +5,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGameStore } from '../../lib/stores/gameStore';
 import { useAuthStore } from '../../lib/stores/authStore';
 import Timer from '../../components/Timer';
+import AdBanner from '../../components/AdBanner';
+import { shouldShowAd } from '../../lib/adHelpers';
 import { SERVER_URL, TRANSLATION_RACE_TIME_LIMIT } from '../../lib/constants';
 import { getSocket } from '../../lib/socket';
 import { colors, radii, type, card, button, buttonText, input } from '../../lib/theme';
@@ -22,6 +24,7 @@ export default function TranslationRaceScreen() {
   const [showFeedback, setShowFeedback] = useState(false);
   const [lastFeedback, setLastFeedback] = useState<{ correct: boolean; text: string } | null>(null);
   const [gameStarted, setGameStarted] = useState(false);
+  const [adDismissed, setAdDismissed] = useState(false);
 
   const inputRef = useRef<TextInput>(null);
   const feedbackAnim = useRef(new Animated.Value(0)).current;
@@ -104,6 +107,25 @@ export default function TranslationRaceScreen() {
   if (isGameOver) {
     const correctCount = results.filter((r) => r.correct).length;
     const accuracy = results.length > 0 ? Math.round((correctCount / results.length) * 100) : 0;
+    const showAd = !adDismissed && user?.id && shouldShowAd({
+      hasOpponent: !!opponent,
+      playerScore,
+      opponentScore,
+      accuracy,
+    });
+
+    if (showAd) {
+      return (
+        <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }}>
+          <AdBanner
+            userId={user!.id}
+            gameType="race"
+            onDismiss={() => setAdDismissed(true)}
+          />
+        </SafeAreaView>
+      );
+    }
+
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 }}>

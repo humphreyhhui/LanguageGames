@@ -4,6 +4,8 @@ import { useRouter } from 'expo-router';
 import { useState, useCallback } from 'react';
 import { useGameStore } from '../../lib/stores/gameStore';
 import { useAuthStore } from '../../lib/stores/authStore';
+import AdBanner from '../../components/AdBanner';
+import { shouldShowAd } from '../../lib/adHelpers';
 import { SERVER_URL, WAGER_ROUNDS } from '../../lib/constants';
 import { colors, radii, type, card, button, buttonText, input } from '../../lib/theme';
 
@@ -39,6 +41,7 @@ export default function WagerScreen() {
   const [roundResults, setRoundResults] = useState<RoundResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showAnswer, setShowAnswer] = useState<{ correct: boolean; text: string } | null>(null);
+  const [adDismissed, setAdDismissed] = useState(false);
 
   const wordsPerRound = 10;
 
@@ -437,6 +440,25 @@ export default function WagerScreen() {
   // ============================================
   // GAME OVER PHASE
   // ============================================
+  const showAd = !adDismissed && user?.id && shouldShowAd({
+    hasOpponent: false,
+    playerScore: 0,
+    opponentScore: 0,
+    finalScore: totalScore,
+  });
+
+  if (showAd) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }}>
+        <AdBanner
+          userId={user!.id}
+          gameType="wager"
+          onDismiss={() => setAdDismissed(true)}
+        />
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScrollView contentContainerStyle={{ padding: 20, alignItems: 'center' }}>
