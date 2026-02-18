@@ -10,10 +10,12 @@ function TabIcon({ name, focused }: { name: string; focused: boolean }) {
   };
 
   return (
-    <View style={{ alignItems: 'center', justifyContent: 'center', paddingTop: 4 }}>
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 4, minWidth: 80 }}>
       <Text style={{ fontSize: 22 }}>{icons[name] || '•'}</Text>
       <Text
         numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.7}
         style={{
           fontSize: 10,
           fontWeight: focused ? '600' : '400',
