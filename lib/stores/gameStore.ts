@@ -20,6 +20,15 @@ interface GameState {
   // Opponent info
   opponent: { username: string; elo: number } | null;
 
+  // Game result (ELO data from server)
+  gameResult: {
+    eloChange: number;
+    newElo: number;
+    playerElo: number;
+    opponentElo: number;
+    isBotMatch?: boolean;
+  } | null;
+
   // Actions
   setGameType: (gameType: GameType) => void;
   setGameMode: (mode: GameMode) => void;
@@ -33,6 +42,7 @@ interface GameState {
   setOpponent: (opponent: { username: string; elo: number }) => void;
   setRoomCode: (code: string) => void;
   setPairs: (pairs: TranslationPair[]) => void;
+  setGameResult: (result: GameState['gameResult']) => void;
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -48,6 +58,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   isGameActive: false,
   isGameOver: false,
   opponent: null,
+  gameResult: null,
 
   setGameType: (gameType) => set({ currentGameType: gameType }),
   setGameMode: (mode) => set({ currentMode: mode }),
@@ -61,6 +72,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       opponentScore: 0,
       isGameActive: true,
       isGameOver: false,
+      gameResult: null,
     }),
 
   submitAnswer: (correct) => {
@@ -93,7 +105,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       isGameActive: false,
       isGameOver: false,
       opponent: null,
+      gameResult: null,
     }),
+
+  setGameResult: (gameResult) => set({ gameResult }),
 
   setOpponent: (opponent) => set({ opponent }),
   setRoomCode: (code) => set({ roomCode: code }),

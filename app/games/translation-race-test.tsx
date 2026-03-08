@@ -6,6 +6,7 @@ import { colors, radii, type, card, button, buttonText, input } from '../../lib/
 import { SERVER_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/constants';
 import { supabase } from '../../lib/supabase';
 import { createTestLogger } from '../../lib/testLogger';
+import { generateBotProfile, sampleBotCorrect, BOT_GAME_PARAMS, type BotDifficulty } from '../../lib/botIdentity';
 
 // ── Hardcoded test pairs (no server dependency) ──────────────
 const TEST_PAIRS = [
@@ -25,14 +26,6 @@ const TEST_PAIRS = [
   { source: 'Love', target: 'Amor' },
   { source: 'Time', target: 'Tiempo' },
 ];
-
-// ── Bot configuration ────────────────────────────────────────
-type BotDifficulty = 'easy' | 'medium' | 'hard';
-const BOT_CONFIG: Record<BotDifficulty, { minDelay: number; maxDelay: number; accuracy: number; name: string }> = {
-  easy:   { minDelay: 4000, maxDelay: 8000,  accuracy: 0.5, name: 'SlowBot' },
-  medium: { minDelay: 2000, maxDelay: 5000,  accuracy: 0.75, name: 'MediumBot' },
-  hard:   { minDelay: 1000, maxDelay: 3000,  accuracy: 0.9, name: 'SpeedBot' },
-};
 
 const TIME_LIMIT = 90;
 
@@ -123,9 +116,10 @@ export default function TranslationRaceTestScreen() {
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const botPairIndex = useRef(0);
   const loggerRef = useRef(createTestLogger('translation-race'));
+  const botProfileRef = useRef<ReturnType<typeof generateBotProfile> | null>(null);
 
   const currentPair = pairs[currentPairIndex];
-  const botConfig = BOT_CONFIG[botDifficulty];
+  const botProfile = botProfileRef.current;
 
   const log = useCallback((msg: string) => {
     const ts = new Date().toISOString().slice(11, 23);
@@ -182,6 +176,7 @@ export default function TranslationRaceTestScreen() {
   // ── Start game ────────────────────────────────────────────
   const startGame = useCallback(async () => {
     await runConnectivityChecks();
+    botProfileRef.current = generateBotProfile(botDifficulty);
     setPhase('countdown');
     log('Countdown started');
     setTimeout(() => {
@@ -192,7 +187,7 @@ export default function TranslationRaceTestScreen() {
       inputRef.current?.focus();
       scheduleBotAnswer(0);
     }, 2000);
-  }, [runConnectivityChecks, log]);
+  }, [runConnectivityChecks, log, botDifficulty]);
 
   // ── Timer ─────────────────────────────────────────────────
   useEffect(() => {
@@ -213,10 +208,13 @@ export default function TranslationRaceTestScreen() {
 
   // ── Bot logic ─────────────────────────────────────────────
   const scheduleBotAnswer = useCallback((pairIdx: number) => {
+    const profile = botProfileRef.current;
+    if (!profile) return;
+    const params = BOT_GAME_PARAMS[botDifficulty];
     if (botTimerRef.current) clearTimeout(botTimerRef.current);
-    const delay = botConfig.minDelay + Math.random() * (botConfig.maxDelay - botConfig.minDelay);
+    const delay = params.raceDelayMin + Math.random() * (params.raceDelayMax - params.raceDelayMin);
     botTimerRef.current = setTimeout(() => {
-      const isCorrect = Math.random() < botConfig.accuracy;
+      const isCorrect = sampleBotCorrect(profile.accuracy, profile.kurtosisProfile);
       if (isCorrect) {
         setBotScore(prev => prev + 1);
       }
@@ -228,7 +226,7 @@ export default function TranslationRaceTestScreen() {
         scheduleBotAnswer(botPairIndex.current);
       }
     }, delay);
-  }, [botConfig, pairs.length, log]);
+  }, [botDifficulty, pairs.length, log]);
 
   // Cleanup bot timer
   useEffect(() => {
@@ -465,7 +463,7 @@ export default function TranslationRaceTestScreen() {
                 </Text>
                 <Text style={{ fontSize: 13, fontWeight: '700', color: colors.silver.white, textTransform: 'capitalize' }}>{diff}</Text>
                 <Text style={{ fontSize: 10, color: colors.silver.mid, marginTop: 2 }}>
-                  {BOT_CONFIG[diff].name}
+                  {diff.charAt(0).toUpperCase() + diff.slice(1)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -473,16 +471,16 @@ export default function TranslationRaceTestScreen() {
 
           {/* Bot Info */}
           <View style={{ ...card, padding: 16, marginTop: 16 }}>
-            <Text style={type.headline}>{botConfig.name}</Text>
+            <Text style={type.headline}>Bot ({botDifficulty})</Text>
             <View style={{ flexDirection: 'row', gap: 20, marginTop: 10 }}>
               <View>
                 <Text style={type.footnote}>Accuracy</Text>
-                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.warning }}>{Math.round(botConfig.accuracy * 100)}%</Text>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.warning }}>Varied</Text>
               </View>
               <View>
                 <Text style={type.footnote}>Speed</Text>
                 <Text style={{ fontSize: 16, fontWeight: '700', color: colors.blue.light }}>
-                  {(botConfig.minDelay / 1000).toFixed(1)}-{(botConfig.maxDelay / 1000).toFixed(1)}s
+                  {(BOT_GAME_PARAMS[botDifficulty].raceDelayMin / 1000).toFixed(1)}-{(BOT_GAME_PARAMS[botDifficulty].raceDelayMax / 1000).toFixed(1)}s
                 </Text>
               </View>
               <View>
@@ -518,7 +516,7 @@ export default function TranslationRaceTestScreen() {
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary, justifyContent: 'center', alignItems: 'center' }}>
         <Text style={{ fontSize: 14, fontWeight: '600', color: colors.blue.light, marginBottom: 8 }}>TEST MODE</Text>
         <Text style={{ fontSize: 48, fontWeight: '800', color: colors.silver.white }}>Get Ready!</Text>
-        <Text style={{ ...type.body, marginTop: 12 }}>vs {botConfig.name} ({botDifficulty})</Text>
+        <Text style={{ ...type.body, marginTop: 12 }}>vs {botProfile?.name ?? 'Bot'} ({botDifficulty})</Text>
         <View style={{ marginTop: 24 }}>
           {statusLog.slice(0, 5).map((msg, i) => (
             <Text key={i} style={{ fontSize: 10, color: colors.silver.mid, fontFamily: 'Courier', marginTop: 2 }}>{msg}</Text>
@@ -550,7 +548,7 @@ export default function TranslationRaceTestScreen() {
             </View>
             <View style={{ alignItems: 'center' }}>
               <Text style={{ fontSize: 36, fontWeight: '800', color: colors.error }}>{botScore}</Text>
-              <Text style={type.body}>{botConfig.name}</Text>
+              <Text style={type.body}>{botProfile?.name ?? 'Bot'}</Text>
             </View>
           </View>
 
@@ -591,7 +589,7 @@ export default function TranslationRaceTestScreen() {
               <Text style={{ ...type.label, marginTop: 20, marginBottom: 8 }}>Game Meta</Text>
               <View style={{ ...card, padding: 16 }}>
                 <StatRow label="Total Game Time" value={`${(gameStats.totalGameTimeMs / 1000).toFixed(1)}s`} />
-                <StatRow label="Winner" value={gameStats.winner === 'player' ? 'You' : gameStats.winner === 'bot' ? botConfig.name : 'Tie'} color={gameStats.winner === 'player' ? colors.success : gameStats.winner === 'bot' ? colors.error : colors.warning} />
+                <StatRow label="Winner" value={gameStats.winner === 'player' ? 'You' : gameStats.winner === 'bot' ? (botProfile?.name ?? 'Bot') : 'Tie'} color={gameStats.winner === 'player' ? colors.success : gameStats.winner === 'bot' ? colors.error : colors.warning} />
               </View>
             </>
           )}
@@ -685,7 +683,7 @@ export default function TranslationRaceTestScreen() {
 
           <View style={{ alignItems: 'center', minWidth: 60 }}>
             <Text style={{ fontSize: 24, fontWeight: '800', color: colors.error }}>{botScore}</Text>
-            <Text style={type.footnote}>{botConfig.name}</Text>
+            <Text style={type.footnote}>{botProfile?.name ?? 'Bot'}</Text>
           </View>
         </View>
 

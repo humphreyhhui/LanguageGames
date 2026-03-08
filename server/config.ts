@@ -54,12 +54,17 @@ export const MATCHMAKING_RANGE_SCHEDULE: { afterMs: number; range: number }[] = 
   { afterMs: 45000, range: Infinity },
 ];
 
-// Bot difficulty by player Elo
-export const BOT_ELO_EASY = 1200;   // < 1200 -> easy (50%)
-export const BOT_ELO_MEDIUM = 1500; // 1200–1500 -> medium (65%); > 1500 -> hard (80%)
-export const BOT_ACCURACY_EASY = 0.5;
-export const BOT_ACCURACY_MEDIUM = 0.65;
-export const BOT_ACCURACY_HARD = 0.8;
+// Bot difficulty by player Elo (thresholds for which tier a player faces)
+export const BOT_ELO_EASY = 1200;   // < 1200 -> easy
+export const BOT_ELO_MEDIUM = 1500;  // 1200–1500 -> medium; > 1500 -> hard
+export const BOT_ELO_DISCOUNT = 0.75;  // ELO change vs bots is 75% of normal
+
+// Bot profile distribution parameters (mean, std, kurtosis range per difficulty)
+export const BOT_PROFILES = {
+  easy:   { eloMean: 750,  eloStd: 50,  accMean: 0.45, accStd: 0.08, kurtDfRange: [5, 30] as const },
+  medium: { eloMean: 1000, eloStd: 75,  accMean: 0.62, accStd: 0.07, kurtDfRange: [4, 25] as const },
+  hard:   { eloMean: 1250, eloStd: 100, accMean: 0.78, accStd: 0.06, kurtDfRange: [3, 20] as const },
+} as const;
 
 // ── Room codes ───────────────────────────────────────────────
 export const ROOM_CODE_LENGTH = 6;

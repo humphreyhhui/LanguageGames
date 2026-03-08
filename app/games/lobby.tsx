@@ -172,10 +172,10 @@ export default function LobbyScreen() {
           setIsSearching(false);
           navigateToGame(data.gameType);
         });
-        socket.once('botMatch', (data: { roomId: string; pairs: any[]; gameType: string; botConfig: { accuracy: number; name: string } }) => {
+        socket.once('botMatch', (data: { roomId: string; pairs: any[]; gameType: string; botConfig: { accuracy: number; name: string; elo: number; kurtosisProfile: number } }) => {
           gameStore.setGameType(data.gameType as GameType);
           gameStore.setGameMode('unranked');
-          gameStore.setOpponent({ username: data.botConfig.name, elo: 1000 });
+          gameStore.setOpponent({ username: data.botConfig.name, elo: data.botConfig.elo });
           gameStore.startGame(data.pairs, data.roomId);
           setIsSearching(false);
           navigateToGame(data.gameType);
@@ -216,10 +216,10 @@ export default function LobbyScreen() {
         setIsSearching(false);
         navigateToGame(data.gameType);
       });
-      socket.once('botMatch', (data: { roomId: string; pairs: any[]; gameType: string; botConfig: { accuracy: number; name: string } }) => {
+      socket.once('botMatch', (data: { roomId: string; pairs: any[]; gameType: string; botConfig: { accuracy: number; name: string; elo: number; kurtosisProfile: number } }) => {
         gameStore.setGameType(data.gameType as GameType);
         gameStore.setGameMode('unranked');
-        gameStore.setOpponent({ username: data.botConfig.name, elo: 1000 });
+        gameStore.setOpponent({ username: data.botConfig.name, elo: data.botConfig.elo });
         gameStore.startGame(data.pairs, data.roomId);
         setIsSearching(false);
         navigateToGame(data.gameType);

@@ -8,11 +8,13 @@ import { colors, radii, type, card, button, buttonText } from '../../lib/theme';
 import { SERVER_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/constants';
 import { supabase } from '../../lib/supabase';
 import { createTestLogger } from '../../lib/testLogger';
+import { generateBotProfile, sampleBotCorrect, BOT_GAME_PARAMS, type BotDifficulty } from '../../lib/botIdentity';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHIP_SIZE = 48;
 const ASTEROID_SIZE = 70;
 const BULLET_SIZE = 8;
+const BULLET_HEIGHT = BULLET_SIZE * 3;
 const SPAWN_INTERVAL = 2500;
 const TIME_LIMIT = 60;
 
@@ -31,14 +33,6 @@ const TEST_PAIRS = [
   { source: 'Red', target: 'Rojo', distractors: ['Ojo', 'Rujo', 'Rosa'] },
   { source: 'Green', target: 'Verde', distractors: ['Viene', 'Verbo', 'Vende'] },
 ];
-
-// ── Bot config ───────────────────────────────────────────────
-type BotDifficulty = 'easy' | 'medium' | 'hard';
-const BOT_CONFIG: Record<BotDifficulty, { accuracy: number; shootInterval: number; name: string }> = {
-  easy:   { accuracy: 0.4, shootInterval: 3500, name: 'SlowBot' },
-  medium: { accuracy: 0.65, shootInterval: 2200, name: 'MediumBot' },
-  hard:   { accuracy: 0.85, shootInterval: 1200, name: 'SpeedBot' },
-};
 
 // ── Types ────────────────────────────────────────────────────
 interface Asteroid {
@@ -122,13 +116,15 @@ export default function AsteroidShooterTestScreen() {
   const bulletIdRef = useRef(0);
   const asteroidsRef = useRef<Asteroid[]>([]);
   const bulletsRef = useRef<Bullet[]>([]);
+  const gameAreaHeightRef = useRef(SCREEN_HEIGHT);
   const spawnTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const gameLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const botTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const loggerRef = useRef(createTestLogger('asteroid-shooter'));
+  const botProfileRef = useRef<ReturnType<typeof generateBotProfile> | null>(null);
   const currentPair = pairs[currentPairIndex];
-  const botConfig = BOT_CONFIG[botDifficulty];
+  const botProfile = botProfileRef.current;
 
   const log = useCallback((msg: string) => {
     const ts = new Date().toISOString().slice(11, 23);
@@ -137,6 +133,7 @@ export default function AsteroidShooterTestScreen() {
   }, []);
 
   // ── Pan responder ────────────────────────────────────────
+  const shootRef = useRef<() => void>(() => {});
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -145,7 +142,9 @@ export default function AsteroidShooterTestScreen() {
         const newX = Math.max(0, Math.min(SCREEN_WIDTH - SHIP_SIZE, gesture.moveX - SHIP_SIZE / 2));
         setShipX(newX);
       },
-      onPanResponderRelease: () => { shoot(); },
+      onPanResponderRelease: () => {
+        shootRef.current();
+      },
     })
   ).current;
 
@@ -217,6 +216,7 @@ export default function AsteroidShooterTestScreen() {
   // ── Start game ────────────────────────────────────────────
   const startGame = useCallback(async () => {
     await runConnectivityChecks();
+    botProfileRef.current = generateBotProfile(botDifficulty);
     setPhase('countdown');
     log('Countdown started');
     setTimeout(() => {
@@ -224,7 +224,7 @@ export default function AsteroidShooterTestScreen() {
       gameStartTime.current = performance.now();
       log('Game started!');
     }, 2000);
-  }, [runConnectivityChecks, log]);
+  }, [runConnectivityChecks, log, botDifficulty]);
 
   // ── Timer ─────────────────────────────────────────────────
   useEffect(() => {
@@ -273,7 +273,7 @@ export default function AsteroidShooterTestScreen() {
         Animated.timing(y, {
           toValue: SCREEN_HEIGHT,
           duration: 5000 + Math.random() * 2000,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }).start(() => {
           asteroidsRef.current = asteroidsRef.current.filter(a => a.id !== id);
           setAsteroids(prev => prev.filter(a => a.id !== id));
@@ -289,8 +289,11 @@ export default function AsteroidShooterTestScreen() {
   // ── Bot logic ─────────────────────────────────────────────
   useEffect(() => {
     if (phase !== 'playing') return;
+    const profile = botProfileRef.current;
+    if (!profile) return;
+    const shootInterval = BOT_GAME_PARAMS[botDifficulty].asteroidShootInterval;
     botTimerRef.current = setInterval(() => {
-      const isCorrect = Math.random() < botConfig.accuracy;
+      const isCorrect = sampleBotCorrect(profile.accuracy, profile.kurtosisProfile);
       botAttempts.current++;
       if (isCorrect) {
         botCorrectCount.current++;
@@ -299,9 +302,9 @@ export default function AsteroidShooterTestScreen() {
       } else {
         log(`Bot ✗ missed`);
       }
-    }, botConfig.shootInterval);
+    }, shootInterval);
     return () => { if (botTimerRef.current) clearInterval(botTimerRef.current); };
-  }, [phase, botConfig]);
+  }, [phase, botDifficulty, log]);
 
   // ── Collision detection ───────────────────────────────────
   useEffect(() => {
@@ -313,12 +316,13 @@ export default function AsteroidShooterTestScreen() {
 
       for (const bullet of activeBullets) {
         const bulletY = (bullet.y as any)._value || 0;
+        const bulletBottom = bulletY + BULLET_HEIGHT;
         for (const asteroid of activeAsteroids) {
           const asteroidY = (asteroid.y as any)._value || 0;
           if (
-            bullet.x > asteroid.x - BULLET_SIZE &&
-            bullet.x < asteroid.x + ASTEROID_SIZE + BULLET_SIZE &&
-            bulletY > asteroidY &&
+            bullet.x + BULLET_SIZE > asteroid.x &&
+            bullet.x < asteroid.x + ASTEROID_SIZE &&
+            bulletBottom > asteroidY &&
             bulletY < asteroidY + ASTEROID_SIZE
           ) {
             bullet.active = false;
@@ -361,7 +365,10 @@ export default function AsteroidShooterTestScreen() {
     if (phase !== 'playing') return;
     playerShots.current++;
     const id = bulletIdRef.current++;
-    const y = new Animated.Value(SCREEN_HEIGHT - 140);
+    const h = gameAreaHeightRef.current;
+    const shipTopY = h - 60 - SHIP_SIZE;
+    const bulletStartY = shipTopY - BULLET_HEIGHT;
+    const y = new Animated.Value(bulletStartY);
     const bullet: Bullet = { id, x: shipX + SHIP_SIZE / 2 - BULLET_SIZE / 2, y, active: true };
     bulletsRef.current = [...bulletsRef.current, bullet];
     setBullets(prev => [...prev, bullet]);
@@ -369,12 +376,13 @@ export default function AsteroidShooterTestScreen() {
     Animated.timing(y, {
       toValue: -BULLET_SIZE,
       duration: 800,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start(() => {
       bulletsRef.current = bulletsRef.current.filter(b => b.id !== id);
       setBullets(prev => prev.filter(b => b.id !== id));
     });
   }, [shipX, phase]);
+  shootRef.current = shoot;
 
   // ── End game ──────────────────────────────────────────────
   const handleGameEnd = useCallback(() => {
@@ -515,7 +523,7 @@ export default function AsteroidShooterTestScreen() {
             </View>
             <View style={{ alignItems: 'center' }}>
               <Text style={{ fontSize: 36, fontWeight: '800', color: colors.error }}>{botScore}</Text>
-              <Text style={type.body}>{botConfig.name}</Text>
+              <Text style={type.body}>{botProfile?.name ?? 'Bot'}</Text>
             </View>
           </View>
 
@@ -625,7 +633,7 @@ export default function AsteroidShooterTestScreen() {
           </View>
           <View style={{ alignItems: 'center' }}>
             <Text style={{ fontSize: 24, fontWeight: '800', color: colors.error }}>{botScore}</Text>
-            <Text style={{ fontSize: 10, color: colors.silver.mid }}>{botConfig.name}</Text>
+            <Text style={{ fontSize: 10, color: colors.silver.mid }}>{botProfile?.name ?? 'Bot'}</Text>
           </View>
         </View>
 
@@ -651,7 +659,12 @@ export default function AsteroidShooterTestScreen() {
         )}
 
         {/* Game area */}
-        <View style={{ flex: 1, position: 'relative' }}>
+        <View
+          style={{ flex: 1, position: 'relative' }}
+          onLayout={(e) => {
+            gameAreaHeightRef.current = e.nativeEvent.layout.height;
+          }}
+        >
           {asteroids.map(asteroid => (
             <Animated.View key={asteroid.id} style={{ position: 'absolute', left: asteroid.x, width: ASTEROID_SIZE, height: ASTEROID_SIZE, transform: [{ translateY: asteroid.y }], zIndex: 10 }}>
               <View style={{ width: '100%', height: '100%', borderRadius: ASTEROID_SIZE / 2, backgroundColor: colors.bg.secondary, borderWidth: 2, borderColor: colors.blue.dark, justifyContent: 'center', alignItems: 'center', padding: 4 }}>
@@ -661,7 +674,7 @@ export default function AsteroidShooterTestScreen() {
           ))}
 
           {bullets.map(bullet => (
-            <Animated.View key={bullet.id} style={{ position: 'absolute', left: bullet.x, width: BULLET_SIZE, height: BULLET_SIZE * 3, borderRadius: BULLET_SIZE / 2, backgroundColor: colors.blue.light, transform: [{ translateY: bullet.y }], zIndex: 5 }} />
+            <Animated.View key={bullet.id} style={{ position: 'absolute', left: bullet.x, width: BULLET_SIZE, height: BULLET_HEIGHT, borderRadius: BULLET_SIZE / 2, backgroundColor: colors.blue.light, transform: [{ translateY: bullet.y }], zIndex: 5 }} />
           ))}
 
           <View style={{ position: 'absolute', bottom: 60, left: shipX, width: SHIP_SIZE, height: SHIP_SIZE, zIndex: 20 }}>

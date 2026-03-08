@@ -10,10 +10,11 @@ import {
   deleteRoom,
   removePlayerFromRooms,
   startMatchmakingLoop,
-  getBotConfig,
+  type GameRoom,
 } from '../services/matchmaking';
 import { generatePairs, generatePairsWithDistractors, validateTranslation } from '../services/ollama';
 import { saveGameSession } from '../services/gameSession';
+import { updateEloAfterBotGame } from '../services/elo';
 import {
   verifySocketToken,
   sanitizeText,
@@ -345,23 +346,58 @@ export function setupSocketHandlers(io: Server): void {
               ? p2.userId
               : null;
 
+        let p1EloChange = 0;
+        let p1NewElo = endedRoom.player1.elo;
+        let p1PlayerElo = endedRoom.player1.elo;
+        let p1OpponentElo = p2.elo;
+
+        if (isBotMatch) {
+          const botResult = await updateEloAfterBotGame(
+            endedRoom.player1.userId,
+            endedRoom.gameType,
+            p2.elo,
+            winnerId
+          );
+          p1EloChange = botResult.playerChange;
+          p1NewElo = botResult.playerNewElo;
+          p1PlayerElo = botResult.playerNewElo - botResult.playerChange;
+        } else if (result.eloResult) {
+          p1EloChange = result.eloResult.player1Change;
+          p1NewElo = result.eloResult.player1NewElo;
+          p1PlayerElo = p1NewElo - p1EloChange;
+          p1OpponentElo = result.eloResult.player2NewElo - result.eloResult.player2Change;
+        }
+
         const p1Socket = io.sockets.sockets.get(endedRoom.player1.socketId);
         p1Socket?.emit('gameResult', {
           winner: winnerId,
           player1Score: endedRoom.player1.score,
           player2Score: p2.score,
-          eloChange: result.eloResult?.player1Change ?? 0,
-          newElo: result.eloResult?.player1NewElo ?? endedRoom.player1.elo,
+          eloChange: p1EloChange,
+          newElo: p1NewElo,
+          playerElo: p1PlayerElo,
+          opponentElo: p1OpponentElo,
+          isBotMatch,
         });
 
-        const p2Socket = io.sockets.sockets.get(p2.socketId);
-        p2Socket?.emit('gameResult', {
-          winner: winnerId,
-          player1Score: endedRoom.player1.score,
-          player2Score: p2.score,
-          eloChange: result.eloResult?.player2Change ?? 0,
-          newElo: result.eloResult?.player2NewElo ?? p2.elo,
-        });
+        if (!isBotMatch) {
+          const p2EloChange = result.eloResult?.player2Change ?? 0;
+          const p2NewElo = result.eloResult?.player2NewElo ?? p2.elo;
+          const p2PlayerElo = p2NewElo - p2EloChange;
+          const p2OpponentElo = p1NewElo - p1EloChange;
+
+          const p2Socket = io.sockets.sockets.get(p2.socketId);
+          p2Socket?.emit('gameResult', {
+            winner: winnerId,
+            player1Score: endedRoom.player1.score,
+            player2Score: p2.score,
+            eloChange: p2EloChange,
+            newElo: p2NewElo,
+            playerElo: p2PlayerElo,
+            opponentElo: p2OpponentElo,
+            isBotMatch: false,
+          });
+        }
       } catch (error) {
         console.error('Failed to save game session:', error);
       }
@@ -422,7 +458,7 @@ export function setupSocketHandlers(io: Server): void {
   };
 
   const onBotMatch = async (
-    room: { roomId: string; gameType: string },
+    room: GameRoom,
     entry: { socketId: string; userId: string; username: string; elo: number },
     gameType: string
   ) => {
@@ -437,14 +473,14 @@ export function setupSocketHandlers(io: Server): void {
       const socket = io.sockets.sockets.get(entry.socketId);
       socket?.join(room.roomId);
 
-      const botConfig = getBotConfig(entry.elo);
+      const botConfig = room.botConfig!;
       socket?.emit('botMatch', {
         roomId: room.roomId,
         pairs,
         gameType,
         botConfig,
       });
-      socket?.emit('opponentInfo', { username: botConfig.name, elo: entry.elo });
+      socket?.emit('opponentInfo', { username: botConfig.name, elo: botConfig.elo });
     } catch (error) {
       console.error('Failed to start bot game:', error);
       const socket = io.sockets.sockets.get(entry.socketId);

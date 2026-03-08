@@ -1,12 +1,13 @@
 import { View, Text, TouchableOpacity, TextInput, ScrollView, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useGameStore } from '../../lib/stores/gameStore';
 import { useAuthStore } from '../../lib/stores/authStore';
 import AdBanner from '../../components/AdBanner';
 import { shouldShowAd } from '../../lib/adHelpers';
 import { SERVER_URL, WAGER_ROUNDS } from '../../lib/constants';
+import { getSocket } from '../../lib/socket';
 import { colors, radii, type, card, button, buttonText, input } from '../../lib/theme';
 
 type Phase = 'wager' | 'play' | 'result' | 'gameover';
@@ -26,8 +27,9 @@ const CATEGORIES = [
 
 export default function WagerScreen() {
   const router = useRouter();
-  const { pairs, playerScore, resetGame, endGame } = useGameStore();
+  const { pairs, playerScore, resetGame, endGame, roomId, opponent, gameResult, setGameResult } = useGameStore();
   const user = useAuthStore((s) => s.user);
+  const fetchEloRatings = useAuthStore((s) => s.fetchEloRatings);
 
   const [phase, setPhase] = useState<Phase>('wager');
   const [currentRound, setCurrentRound] = useState(1);
@@ -44,6 +46,19 @@ export default function WagerScreen() {
   const [adDismissed, setAdDismissed] = useState(false);
 
   const wordsPerRound = 10;
+
+  // Listen for gameResult when in a room (matchmade or bot)
+  useEffect(() => {
+    if (roomId) {
+      const socket = getSocket();
+      socket.on('gameResult', (data: { eloChange: number; newElo: number; playerElo: number; opponentElo: number; isBotMatch?: boolean }) => {
+        setGameResult({ eloChange: data.eloChange, newElo: data.newElo, playerElo: data.playerElo, opponentElo: data.opponentElo, isBotMatch: data.isBotMatch });
+        endGame();
+        if (data.eloChange !== 0) fetchEloRatings();
+      });
+      return () => socket.off('gameResult');
+    }
+  }, [roomId]);
 
   const handleStartRound = useCallback(async () => {
     setIsLoading(true);
@@ -148,6 +163,7 @@ export default function WagerScreen() {
   const handleNextRound = () => {
     if (currentRound >= WAGER_ROUNDS) {
       setPhase('gameover');
+      if (roomId) getSocket().emit('endGame', { roomId });
       endGame();
     } else {
       setCurrentRound((prev) => prev + 1);
@@ -474,6 +490,31 @@ export default function WagerScreen() {
           <Text style={{ fontSize: 56, fontWeight: '800', color: totalScore >= 0 ? colors.success : colors.error }}>
             {totalScore}
           </Text>
+          {(gameResult || opponent) && (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24, marginTop: 16 }}>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, color: colors.silver.mid }}>You</Text>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.silver.white }}>
+                  ELO {gameResult?.newElo ?? gameResult?.playerElo ?? '—'}
+                  {gameResult && gameResult.eloChange !== 0 && (
+                    <Text style={{ color: gameResult.eloChange > 0 ? colors.success : colors.error }}>
+                      {' '}({gameResult.eloChange > 0 ? '+' : ''}{gameResult.eloChange})
+                    </Text>
+                  )}
+                </Text>
+              </View>
+              <Text style={{ color: colors.silver.dark }}>vs</Text>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ fontSize: 12, color: colors.silver.mid }}>{opponent?.username ?? 'Opponent'}</Text>
+                <Text style={{ fontSize: 16, fontWeight: '700', color: colors.silver.white }}>
+                  ELO {gameResult?.opponentElo ?? opponent?.elo ?? '—'}
+                </Text>
+              </View>
+              {gameResult?.isBotMatch && (
+                <Text style={{ fontSize: 11, color: colors.silver.mid }}>vs Bot, 75% ELO</Text>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Round breakdown */}

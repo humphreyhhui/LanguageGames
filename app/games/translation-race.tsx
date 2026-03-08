@@ -15,8 +15,9 @@ interface AnswerResult { index: number; correct: boolean; feedback: string; user
 
 export default function TranslationRaceScreen() {
   const router = useRouter();
-  const { pairs, currentPairIndex, playerScore, opponentScore, isGameOver, roomId, currentMode, nextPair, submitAnswer, endGame, resetGame, opponent } = useGameStore();
+  const { pairs, currentPairIndex, playerScore, opponentScore, isGameOver, roomId, currentMode, nextPair, submitAnswer, endGame, resetGame, opponent, gameResult, setGameResult } = useGameStore();
   const user = useAuthStore((s) => s.user);
+  const fetchEloRatings = useAuthStore((s) => s.fetchEloRatings);
 
   const [userInput, setUserInput] = useState('');
   const [isTimerActive, setIsTimerActive] = useState(false);
@@ -37,15 +38,19 @@ export default function TranslationRaceScreen() {
   }, []);
 
   useEffect(() => {
-    if (roomId && currentMode !== 'unranked') {
+    if (roomId) {
       const socket = getSocket();
       socket.on('scoreUpdate', (data: { player1Score: number; player2Score: number }) => {
         useGameStore.getState().updateOpponentScore(data.player2Score);
       });
-      socket.on('gameResult', () => endGame());
+      socket.on('gameResult', (data: { eloChange: number; newElo: number; playerElo: number; opponentElo: number; isBotMatch?: boolean }) => {
+        setGameResult({ eloChange: data.eloChange, newElo: data.newElo, playerElo: data.playerElo, opponentElo: data.opponentElo, isBotMatch: data.isBotMatch });
+        endGame();
+        if (data.eloChange !== 0) fetchEloRatings();
+      });
       return () => { socket.off('scoreUpdate'); socket.off('gameResult'); };
     }
-  }, [roomId, currentMode]);
+  }, [roomId]);
 
   const handleSubmit = useCallback(async () => {
     if (!userInput.trim() || !currentPair || !gameStarted) return;
@@ -133,13 +138,44 @@ export default function TranslationRaceScreen() {
           <Text style={{ ...type.hero, marginTop: 12 }}>Game Over!</Text>
 
           <View style={{ ...card, padding: 24, marginTop: 24, width: '100%', alignItems: 'center' }}>
-            <Text style={{ fontSize: 48, fontWeight: '800', color: colors.success }}>{playerScore}</Text>
-            <Text style={type.body}>correct translations</Text>
-            {opponent && (
-              <View style={{ flexDirection: 'row', marginTop: 16 }}>
-                <Text style={type.body}>vs {opponent.username}: </Text>
-                <Text style={{ fontSize: 18, fontWeight: '700', color: colors.error }}>{opponentScore}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24 }}>
+              <View style={{ alignItems: 'center' }}>
+                <Text style={{ fontSize: 36, fontWeight: '800', color: colors.success }}>{playerScore}</Text>
+                <Text style={type.footnote}>You</Text>
+                {(gameResult || opponent) && (
+                  <Text style={{ fontSize: 14, color: colors.silver.mid, marginTop: 4 }}>
+                    ELO {gameResult?.newElo ?? gameResult?.playerElo ?? '—'}
+                    {gameResult && gameResult.eloChange !== 0 && (
+                      <Text style={{ color: gameResult.eloChange > 0 ? colors.success : colors.error, fontWeight: '600' }}>
+                        {' '}({gameResult.eloChange > 0 ? '+' : ''}{gameResult.eloChange})
+                      </Text>
+                    )}
+                  </Text>
+                )}
               </View>
+              <Text style={{ fontSize: 20, color: colors.silver.dark }}>vs</Text>
+              <View style={{ alignItems: 'center' }}>
+                {opponent ? (
+                  <>
+                    <Text style={{ fontSize: 36, fontWeight: '800', color: colors.error }}>{opponentScore}</Text>
+                    <Text style={type.footnote}>{opponent.username}</Text>
+                    {(gameResult || opponent) && (
+                      <Text style={{ fontSize: 14, color: colors.silver.mid, marginTop: 4 }}>
+                        ELO {gameResult?.opponentElo ?? opponent.elo}
+                      </Text>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Text style={{ fontSize: 36, fontWeight: '800', color: colors.error }}>—</Text>
+                    <Text style={type.footnote}>Solo</Text>
+                  </>
+                )}
+              </View>
+            </View>
+            <Text style={{ ...type.body, marginTop: 12 }}>correct translations</Text>
+            {gameResult?.isBotMatch && (
+              <Text style={{ fontSize: 11, color: colors.silver.mid, marginTop: 8 }}>vs Bot, 75% ELO</Text>
             )}
             <View style={{ flexDirection: 'row', marginTop: 20, gap: 28 }}>
               <View style={{ alignItems: 'center' }}><Text style={{ fontSize: 20, fontWeight: '700', color: colors.silver.white }}>{results.length}</Text><Text style={type.footnote}>Attempted</Text></View>

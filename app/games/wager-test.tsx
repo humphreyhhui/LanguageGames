@@ -6,6 +6,7 @@ import { colors, radii, type, card, button, buttonText, input } from '../../lib/
 import { SERVER_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/constants';
 import { supabase } from '../../lib/supabase';
 import { createTestLogger } from '../../lib/testLogger';
+import { generateBotProfile, sampleBotCorrect, BOT_GAME_PARAMS, type BotDifficulty } from '../../lib/botIdentity';
 
 const WAGER_ROUNDS = 5;
 const WORDS_PER_ROUND = 10;
@@ -53,14 +54,6 @@ const ROUND_PAIRS = [
     { source: 'Peace', target: 'Paz' }, { source: 'Strength', target: 'Fuerza' },
   ],
 ];
-
-// ── Bot config ───────────────────────────────────────────────
-type BotDifficulty = 'easy' | 'medium' | 'hard';
-const BOT_CONFIG: Record<BotDifficulty, { accuracy: number; wagerStyle: 'conservative' | 'balanced' | 'aggressive'; name: string }> = {
-  easy:   { accuracy: 0.4, wagerStyle: 'conservative', name: 'SafeBot' },
-  medium: { accuracy: 0.65, wagerStyle: 'balanced', name: 'WagerBot' },
-  hard:   { accuracy: 0.85, wagerStyle: 'aggressive', name: 'HighRoller' },
-};
 
 type Phase = 'setup' | 'countdown' | 'wager' | 'play' | 'roundResult' | 'gameover';
 
@@ -134,7 +127,8 @@ export default function WagerTestScreen() {
   const serverHealthMs = useRef<number | null>(null);
   const gameStartTime = useRef(0);
   const loggerRef = useRef(createTestLogger('wager'));
-  const botConfig = BOT_CONFIG[botDifficulty];
+  const botProfileRef = useRef<ReturnType<typeof generateBotProfile> | null>(null);
+  const botProfile = botProfileRef.current;
 
   const log = useCallback((msg: string) => {
     const ts = new Date().toISOString().slice(11, 23);
@@ -183,6 +177,7 @@ export default function WagerTestScreen() {
   // ── Start game ────────────────────────────────────────────
   const startGame = useCallback(async () => {
     await runConnectivityChecks();
+    botProfileRef.current = generateBotProfile(botDifficulty);
     setPhase('countdown');
     log('Countdown started');
     setTimeout(() => {
@@ -190,11 +185,11 @@ export default function WagerTestScreen() {
       setPhase('wager');
       log('Round 1 - Place your wager!');
     }, 2000);
-  }, [runConnectivityChecks, log]);
+  }, [runConnectivityChecks, log, botDifficulty]);
 
   // ── Generate bot wager ────────────────────────────────────
   const generateBotWager = useCallback(() => {
-    const style = botConfig.wagerStyle;
+    const style = BOT_GAME_PARAMS[botDifficulty].wagerStyle;
     let w: number;
     if (style === 'conservative') {
       w = Math.floor(Math.random() * 3) + 1;
@@ -204,13 +199,13 @@ export default function WagerTestScreen() {
       w = Math.floor(Math.random() * 4) + 7;
     }
     return Math.min(w, WORDS_PER_ROUND);
-  }, [botConfig]);
+  }, [botDifficulty]);
 
   // ── Start round (try to fetch LLM pairs) ─────────────────
   const handleStartRound = useCallback(async () => {
     const bw = generateBotWager();
     setBotWager(bw);
-    log(`You wagered ${wager}, ${botConfig.name} wagered ${bw}`);
+    log(`You wagered ${wager}, ${botProfileRef.current?.name ?? 'Bot'} wagered ${bw}`);
 
     // Try LLM pair gen
     currentRoundValidateTimes.current = [];
@@ -250,7 +245,7 @@ export default function WagerTestScreen() {
     setCurrentWordIndex(0);
     setCorrectThisRound(0);
     setPhase('play');
-  }, [currentRound, wager, botConfig, generateBotWager, log]);
+  }, [currentRound, wager, generateBotWager, log]);
 
   // ── Validate answer (with LLM timing) ────────────────────
   const validateWithServer = useCallback(async (source: string, userAnswer: string, correctAnswer: string): Promise<{ correct: boolean; feedback: string; ms: number } | null> => {
@@ -322,9 +317,12 @@ export default function WagerTestScreen() {
     const playerPts = playerHit ? wager * 10 + (finalCorrect - wager) * 5 : -(wager * 5);
 
     // Bot plays
+    const profile = botProfileRef.current;
     let botCorrectCount = 0;
-    for (let i = 0; i < WORDS_PER_ROUND; i++) {
-      if (Math.random() < botConfig.accuracy) botCorrectCount++;
+    if (profile) {
+      for (let i = 0; i < WORDS_PER_ROUND; i++) {
+        if (sampleBotCorrect(profile.accuracy, profile.kurtosisProfile)) botCorrectCount++;
+      }
     }
     const botHit = botCorrectCount >= botWager;
     const botPts = botHit ? botWager * 10 + (botCorrectCount - botWager) * 5 : -(botWager * 5);
@@ -346,9 +344,9 @@ export default function WagerTestScreen() {
     setRoundResults(prev => [...prev, result]);
     setPlayerTotalScore(prev => prev + playerPts);
     setBotTotalScore(prev => prev + botPts);
-    log(`Round ${currentRound}: You ${playerHit ? 'HIT' : 'MISSED'} (${finalCorrect}/${wager}) ${playerPts >= 0 ? '+' : ''}${playerPts}pts | ${botConfig.name} ${botHit ? 'HIT' : 'MISSED'} (${botCorrectCount}/${botWager}) ${botPts >= 0 ? '+' : ''}${botPts}pts`);
+    log(`Round ${currentRound}: You ${playerHit ? 'HIT' : 'MISSED'} (${finalCorrect}/${wager}) ${playerPts >= 0 ? '+' : ''}${playerPts}pts | ${profile?.name ?? 'Bot'} ${botHit ? 'HIT' : 'MISSED'} (${botCorrectCount}/${botWager}) ${botPts >= 0 ? '+' : ''}${botPts}pts`);
     setPhase('roundResult');
-  }, [currentRound, wager, botWager, botConfig, log]);
+  }, [currentRound, wager, botWager, log]);
 
   // ── Next round / end game ─────────────────────────────────
   const handleNextRound = useCallback(() => {
@@ -443,10 +441,10 @@ export default function WagerTestScreen() {
           </View>
 
           <View style={{ ...card, padding: 16, marginTop: 12 }}>
-            <Text style={type.headline}>{botConfig.name}</Text>
+            <Text style={type.headline}>{botProfile?.name ?? 'Bot'}</Text>
             <View style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
-              <View><Text style={type.footnote}>Accuracy</Text><Text style={{ fontSize: 16, fontWeight: '700', color: colors.warning }}>{Math.round(botConfig.accuracy * 100)}%</Text></View>
-              <View><Text style={type.footnote}>Style</Text><Text style={{ fontSize: 16, fontWeight: '700', color: colors.blue.light, textTransform: 'capitalize' }}>{botConfig.wagerStyle}</Text></View>
+              <View><Text style={type.footnote}>Accuracy</Text><Text style={{ fontSize: 16, fontWeight: '700', color: colors.warning }}>{botProfile ? `${Math.round(botProfile.accuracy * 100)}%` : 'Varied'}</Text></View>
+              <View><Text style={type.footnote}>Style</Text><Text style={{ fontSize: 16, fontWeight: '700', color: colors.blue.light, textTransform: 'capitalize' }}>{BOT_GAME_PARAMS[botDifficulty].wagerStyle}</Text></View>
               <View><Text style={type.footnote}>Rounds</Text><Text style={{ fontSize: 16, fontWeight: '700', color: colors.silver.white }}>{WAGER_ROUNDS}</Text></View>
             </View>
           </View>
@@ -466,7 +464,7 @@ export default function WagerTestScreen() {
         <Text style={{ fontSize: 14, fontWeight: '600', color: colors.blue.light, marginBottom: 8 }}>TEST MODE</Text>
         <Text style={{ fontSize: 48 }}>🎲</Text>
         <Text style={{ fontSize: 24, fontWeight: '700', color: colors.silver.white, marginTop: 16 }}>Wager Mode!</Text>
-        <Text style={{ ...type.body, marginTop: 8 }}>vs {botConfig.name}</Text>
+        <Text style={{ ...type.body, marginTop: 8 }}>vs {botProfile?.name ?? 'Bot'}</Text>
         <View style={{ marginTop: 24 }}>
           {statusLog.slice(0, 5).map((msg, i) => (
             <Text key={i} style={{ fontSize: 10, color: colors.silver.mid, fontFamily: 'Courier', marginTop: 2 }}>{msg}</Text>
@@ -495,7 +493,7 @@ export default function WagerTestScreen() {
               <Text style={{ fontSize: 24, fontWeight: '800', color: playerTotalScore >= 0 ? colors.success : colors.error }}>{playerTotalScore}</Text>
             </View>
             <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 13, color: colors.silver.mid }}>{botConfig.name}</Text>
+              <Text style={{ fontSize: 13, color: colors.silver.mid }}>{botProfile?.name ?? 'Bot'}</Text>
               <Text style={{ fontSize: 24, fontWeight: '800', color: botTotalScore >= 0 ? colors.error : colors.success }}>{botTotalScore}</Text>
             </View>
           </View>
@@ -607,7 +605,7 @@ export default function WagerTestScreen() {
               <Text style={{ fontSize: 28, fontWeight: '800', color: last.playerPoints >= 0 ? colors.success : colors.error }}>{last.playerPoints >= 0 ? '+' : ''}{last.playerPoints}</Text>
             </View>
             <View style={{ alignItems: 'center' }}>
-              <Text style={{ fontSize: 12, color: colors.silver.mid }}>{botConfig.name}</Text>
+              <Text style={{ fontSize: 12, color: colors.silver.mid }}>{botProfile?.name ?? 'Bot'}</Text>
               <Text style={{ fontSize: 14, color: colors.silver.light }}>{last.botCorrect}/{WORDS_PER_ROUND} (wager: {last.botWager})</Text>
               <Text style={{ fontSize: 28, fontWeight: '800', color: last.botPoints >= 0 ? colors.success : colors.error }}>{last.botPoints >= 0 ? '+' : ''}{last.botPoints}</Text>
             </View>
@@ -654,7 +652,7 @@ export default function WagerTestScreen() {
           </View>
           <View style={{ alignItems: 'center' }}>
             <Text style={{ fontSize: 36, fontWeight: '800', color: botTotalScore >= 0 ? colors.error : colors.success }}>{botTotalScore}</Text>
-            <Text style={type.body}>{botConfig.name}</Text>
+            <Text style={type.body}>{botProfile?.name ?? 'Bot'}</Text>
           </View>
         </View>
 

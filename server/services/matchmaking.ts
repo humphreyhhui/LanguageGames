@@ -8,10 +8,8 @@ import {
   MATCHMAKING_RANGE_SCHEDULE,
   BOT_ELO_EASY,
   BOT_ELO_MEDIUM,
-  BOT_ACCURACY_EASY,
-  BOT_ACCURACY_MEDIUM,
-  BOT_ACCURACY_HARD,
 } from '../config';
+import { generateBotProfile, type BotDifficulty } from './botIdentity';
 
 // ============================================
 // Types
@@ -27,6 +25,13 @@ export interface QueueEntry {
   botFallbackMs?: number;
 }
 
+export interface BotConfig {
+  accuracy: number;
+  name: string;
+  elo: number;
+  kurtosisProfile: number;
+}
+
 export interface GameRoom {
   roomId: string;
   roomCode: string;
@@ -37,12 +42,9 @@ export interface GameRoom {
   isActive: boolean;
   startedAt: number | null;
   mode: 'ranked' | 'unranked' | 'friend' | 'bot_fallback';
+  botConfig?: BotConfig;
 }
 
-export interface BotConfig {
-  accuracy: number;
-  name: string;
-}
 
 // ============================================
 // State
@@ -68,14 +70,21 @@ function getEloRangeForWaitTime(waitMs: number): number {
   return MATCHMAKING_RANGE_SCHEDULE[0].range;
 }
 
+function getBotDifficulty(playerElo: number): BotDifficulty {
+  if (playerElo < BOT_ELO_EASY) return 'easy';
+  if (playerElo < BOT_ELO_MEDIUM) return 'medium';
+  return 'hard';
+}
+
 export function getBotConfig(playerElo: number): BotConfig {
-  if (playerElo < BOT_ELO_EASY) {
-    return { accuracy: BOT_ACCURACY_EASY, name: 'EasyBot' };
-  }
-  if (playerElo < BOT_ELO_MEDIUM) {
-    return { accuracy: BOT_ACCURACY_MEDIUM, name: 'MediumBot' };
-  }
-  return { accuracy: BOT_ACCURACY_HARD, name: 'HardBot' };
+  const difficulty = getBotDifficulty(playerElo);
+  const profile = generateBotProfile(difficulty);
+  return {
+    accuracy: profile.accuracy,
+    name: profile.name,
+    elo: profile.elo,
+    kurtosisProfile: profile.kurtosisProfile,
+  };
 }
 
 // ============================================
@@ -275,13 +284,14 @@ export function createBotRoom(
       socketId: `bot_${roomId}`,
       userId: `bot_${roomId}`,
       username: botConfig.name,
-      elo: player.elo,
+      elo: botConfig.elo,
       score: 0,
     },
     pairs: [],
     isActive: false,
     startedAt: null,
     mode: 'bot_fallback',
+    botConfig,
   };
 
   activeRooms.set(roomId, room);

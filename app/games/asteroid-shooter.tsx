@@ -15,6 +15,7 @@ import Timer from '../../components/Timer';
 import AdBanner from '../../components/AdBanner';
 import { shouldShowAd } from '../../lib/adHelpers';
 import { ASTEROID_GAME_DURATION } from '../../lib/constants';
+import { getSocket } from '../../lib/socket';
 import { TranslationPair } from '../../lib/types';
 import { colors, radii, type, card, button, buttonText } from '../../lib/theme';
 
@@ -22,6 +23,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHIP_SIZE = 48;
 const ASTEROID_SIZE = 70;
 const BULLET_SIZE = 8;
+const BULLET_HEIGHT = BULLET_SIZE * 3;
 const SPAWN_INTERVAL = 2500;
 
 interface Asteroid {
@@ -42,8 +44,9 @@ interface Bullet {
 
 export default function AsteroidShooterScreen() {
   const router = useRouter();
-  const { pairs, playerScore, isGameOver, submitAnswer, endGame, resetGame, opponent, opponentScore } = useGameStore();
+  const { pairs, playerScore, isGameOver, submitAnswer, endGame, resetGame, opponent, opponentScore, roomId, gameResult, setGameResult } = useGameStore();
   const user = useAuthStore((s) => s.user);
+  const fetchEloRatings = useAuthStore((s) => s.fetchEloRatings);
 
   const [shipX, setShipX] = useState(SCREEN_WIDTH / 2 - SHIP_SIZE / 2);
   const [asteroids, setAsteroids] = useState<Asteroid[]>([]);
@@ -61,10 +64,12 @@ export default function AsteroidShooterScreen() {
   const gameLoopRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const asteroidsRef = useRef<Asteroid[]>([]);
   const bulletsRef = useRef<Bullet[]>([]);
+  const gameAreaHeightRef = useRef(SCREEN_HEIGHT);
 
   const currentPair = pairs[currentPairIndex];
 
   // Pan responder for ship movement
+  const shootRef = useRef<() => void>(() => {});
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
@@ -74,8 +79,7 @@ export default function AsteroidShooterScreen() {
         setShipX(newX);
       },
       onPanResponderRelease: () => {
-        // Shoot on release
-        shoot();
+        shootRef.current();
       },
     })
   ).current;
@@ -88,6 +92,19 @@ export default function AsteroidShooterScreen() {
     }, 1500);
     return () => clearTimeout(timer);
   }, []);
+
+  // Listen for gameResult when in a room (matchmade or bot)
+  useEffect(() => {
+    if (roomId) {
+      const socket = getSocket();
+      socket.on('gameResult', (data: { eloChange: number; newElo: number; playerElo: number; opponentElo: number; isBotMatch?: boolean }) => {
+        setGameResult({ eloChange: data.eloChange, newElo: data.newElo, playerElo: data.playerElo, opponentElo: data.opponentElo, isBotMatch: data.isBotMatch });
+        endGame();
+        if (data.eloChange !== 0) fetchEloRatings();
+      });
+      return () => socket.off('gameResult');
+    }
+  }, [roomId]);
 
   // Spawn asteroids
   useEffect(() => {
@@ -122,11 +139,11 @@ export default function AsteroidShooterScreen() {
         asteroidsRef.current = [...asteroidsRef.current, asteroid];
         setAsteroids((prev) => [...prev, asteroid]);
 
-        // Animate falling
+        // Animate falling (useNativeDriver: false so _value syncs for collision detection)
         Animated.timing(y, {
           toValue: SCREEN_HEIGHT,
           duration: 5000 + Math.random() * 2000,
-          useNativeDriver: true,
+          useNativeDriver: false,
         }).start(() => {
           // Remove asteroid when off screen
           asteroidsRef.current = asteroidsRef.current.filter((a) => a.id !== id);
@@ -157,11 +174,12 @@ export default function AsteroidShooterScreen() {
         for (const asteroid of activeAsteroids) {
           const asteroidY = (asteroid.y as any)._value || 0;
 
-          // Simple AABB collision
+          // AABB collision (bullet has height BULLET_HEIGHT)
+          const bulletBottom = bulletY + BULLET_HEIGHT;
           if (
-            bullet.x > asteroid.x - BULLET_SIZE &&
-            bullet.x < asteroid.x + ASTEROID_SIZE + BULLET_SIZE &&
-            bulletY > asteroidY &&
+            bullet.x + BULLET_SIZE > asteroid.x &&
+            bullet.x < asteroid.x + ASTEROID_SIZE &&
+            bulletBottom > asteroidY &&
             bulletY < asteroidY + ASTEROID_SIZE
           ) {
             // Hit!
@@ -202,7 +220,10 @@ export default function AsteroidShooterScreen() {
 
   const shoot = useCallback(() => {
     const id = bulletIdRef.current++;
-    const y = new Animated.Value(SCREEN_HEIGHT - 140);
+    const h = gameAreaHeightRef.current;
+    const shipTopY = h - 60 - SHIP_SIZE;
+    const bulletStartY = shipTopY - BULLET_HEIGHT;
+    const y = new Animated.Value(bulletStartY);
 
     const bullet: Bullet = {
       id,
@@ -217,15 +238,17 @@ export default function AsteroidShooterScreen() {
     Animated.timing(y, {
       toValue: -BULLET_SIZE,
       duration: 800,
-      useNativeDriver: true,
+      useNativeDriver: false,
     }).start(() => {
       bulletsRef.current = bulletsRef.current.filter((b) => b.id !== id);
       setBullets((prev) => prev.filter((b) => b.id !== id));
     });
   }, [shipX]);
+  shootRef.current = shoot;
 
   const handleTimeUp = () => {
     setIsTimerActive(false);
+    if (roomId) getSocket().emit('endGame', { roomId });
     endGame();
     if (spawnTimerRef.current) clearInterval(spawnTimerRef.current);
     if (gameLoopRef.current) clearInterval(gameLoopRef.current);
@@ -284,14 +307,44 @@ export default function AsteroidShooterScreen() {
         <Text style={{ fontSize: 28, fontWeight: '800', color: colors.silver.white }}>Mission Complete!</Text>
 
         <View style={[card, { padding: 24, marginTop: 24, width: '100%', alignItems: 'center' }]}>
-          <Text style={{ fontSize: 48, fontWeight: '800', color: colors.success }}>{playerScore}</Text>
-          <Text style={{ fontSize: 14, color: colors.silver.light }}>asteroids destroyed</Text>
-
-          {opponent && (
-            <View style={{ flexDirection: 'row', marginTop: 12 }}>
-              <Text style={{ color: colors.silver.mid }}>vs {opponent.username}: </Text>
-              <Text style={{ fontWeight: '700', color: colors.error }}>{opponentScore}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 24 }}>
+            <View style={{ alignItems: 'center' }}>
+              <Text style={{ fontSize: 36, fontWeight: '800', color: colors.success }}>{playerScore}</Text>
+              <Text style={type.footnote}>You</Text>
+              {(gameResult || opponent) && (
+                <Text style={{ fontSize: 14, color: colors.silver.mid, marginTop: 4 }}>
+                  ELO {gameResult?.newElo ?? gameResult?.playerElo ?? '—'}
+                  {gameResult && gameResult.eloChange !== 0 && (
+                    <Text style={{ color: gameResult.eloChange > 0 ? colors.success : colors.error, fontWeight: '600' }}>
+                      {' '}({gameResult.eloChange > 0 ? '+' : ''}{gameResult.eloChange})
+                    </Text>
+                  )}
+                </Text>
+              )}
             </View>
+            <Text style={{ fontSize: 20, color: colors.silver.dark }}>vs</Text>
+            <View style={{ alignItems: 'center' }}>
+              {opponent ? (
+                <>
+                  <Text style={{ fontSize: 36, fontWeight: '800', color: colors.error }}>{opponentScore}</Text>
+                  <Text style={type.footnote}>{opponent.username}</Text>
+                  {(gameResult || opponent) && (
+                    <Text style={{ fontSize: 14, color: colors.silver.mid, marginTop: 4 }}>
+                      ELO {gameResult?.opponentElo ?? opponent.elo}
+                    </Text>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Text style={{ fontSize: 36, fontWeight: '800', color: colors.error }}>—</Text>
+                  <Text style={type.footnote}>Solo</Text>
+                </>
+              )}
+            </View>
+          </View>
+          <Text style={{ fontSize: 14, color: colors.silver.light, marginTop: 12 }}>asteroids destroyed</Text>
+          {gameResult?.isBotMatch && (
+            <Text style={{ fontSize: 11, color: colors.silver.mid, marginTop: 8 }}>vs Bot, 75% ELO</Text>
           )}
         </View>
 
@@ -359,7 +412,12 @@ export default function AsteroidShooterScreen() {
         )}
 
         {/* Game area */}
-        <View style={{ flex: 1, position: 'relative' }}>
+        <View
+          style={{ flex: 1, position: 'relative' }}
+          onLayout={(e) => {
+            gameAreaHeightRef.current = e.nativeEvent.layout.height;
+          }}
+        >
           {/* Asteroids */}
           {asteroids.map((asteroid) => (
             <Animated.View
@@ -404,7 +462,7 @@ export default function AsteroidShooterScreen() {
                 position: 'absolute',
                 left: bullet.x,
                 width: BULLET_SIZE,
-                height: BULLET_SIZE * 3,
+                height: BULLET_HEIGHT,
                 borderRadius: BULLET_SIZE / 2,
                 backgroundColor: colors.blue.light,
                 transform: [{ translateY: bullet.y }],

@@ -68,14 +68,21 @@ export default function AdBanner({ userId, gameType, gameSessionId, onDismiss }:
           aspectRatio: 2.5,
           backgroundColor: ad.color,
           borderRadius: radii.lg,
-          justifyContent: 'center',
+          justifyContent: 'space-between',
           alignItems: 'center',
           borderWidth: 2,
           borderColor: colors.glassBorder,
+          paddingVertical: 16,
+          paddingHorizontal: 12,
         }}
       >
-        <Text style={{ fontSize: 28, fontWeight: '800', color: '#fff' }}>{ad.label}</Text>
-        <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 8 }}>Sponsored</Text>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={{ fontSize: 28, fontWeight: '800', color: '#fff' }}>{ad.label}</Text>
+          <Text style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 8 }}>Sponsored</Text>
+        </View>
+        <Text style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>
+          Foreign Language Subtitles Here
+        </Text>
       </View>
 
       <View style={{ marginTop: 24, alignItems: 'center' }}>

@@ -138,6 +138,9 @@ export interface SocketEvents {
     player2Score: number;
     eloChange: number;
     newElo: number;
+    playerElo: number;
+    opponentElo: number;
+    isBotMatch?: boolean;
   };
   opponentJoined: { username: string; elo: number };
   error: { message: string };

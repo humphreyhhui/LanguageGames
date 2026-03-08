@@ -12,6 +12,7 @@ import {
   ELO_K_ESTABLISHED,
   ELO_GAMES_PROVISIONAL,
   ELO_GAMES_ESTABLISHED,
+  BOT_ELO_DISCOUNT,
 } from '../config';
 
 const GAME_TYPES = ['asteroid', 'race', 'match', 'wager'] as const;
@@ -211,6 +212,55 @@ export async function updateEloAfterGame(
     player1Change: p1NewElo - p1Elo,
     player2Change: p2NewElo - p2Elo,
   };
+}
+
+// ============================================
+// Update Elo after a bot game (75% of normal change)
+// ============================================
+
+export async function updateEloAfterBotGame(
+  playerId: string,
+  gameType: string,
+  botElo: number,
+  winnerId: string | null
+): Promise<{ playerNewElo: number; playerChange: number }> {
+  await ensureEloRow(playerId, gameType);
+
+  const { data: rating } = await supabase
+    .from('elo_ratings')
+    .select('elo, peak_elo')
+    .eq('user_id', playerId)
+    .eq('game_type', gameType)
+    .single();
+
+  const playerElo = rating?.elo ?? DEFAULT_ELO;
+  const gamesPlayed = await getGamesPlayed(playerId, gameType);
+  const kFactor = getKFactor(gamesPlayed);
+
+  const playerResult: 0 | 0.5 | 1 =
+    winnerId === null ? 0.5 : winnerId === playerId ? 1 : 0;
+
+  const rawNewElo = calculateNewElo(playerElo, botElo, playerResult, kFactor);
+  const rawChange = rawNewElo - playerElo;
+  const discountedChange = Math.round(rawChange * BOT_ELO_DISCOUNT);
+  const clampedChange =
+    Math.max(ELO_MIN_CHANGE, Math.abs(discountedChange)) * (discountedChange >= 0 ? 1 : -1);
+  const playerNewElo = Math.max(ELO_MIN_FLOOR, playerElo + clampedChange);
+  const playerChange = playerNewElo - playerElo;
+
+  await supabase
+    .from('elo_ratings')
+    .upsert({
+      user_id: playerId,
+      game_type: gameType,
+      elo: playerNewElo,
+      peak_elo: Math.max(playerNewElo, rating?.peak_elo ?? DEFAULT_ELO),
+      games_played: gamesPlayed + 1,
+    }, { onConflict: 'user_id,game_type' });
+
+  await checkEloBasedBadges(playerId, gameType, playerNewElo);
+
+  return { playerNewElo, playerChange };
 }
 
 // ============================================

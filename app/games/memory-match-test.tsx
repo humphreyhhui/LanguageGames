@@ -6,6 +6,7 @@ import { colors, radii, type, card, button, buttonText } from '../../lib/theme';
 import { SERVER_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/constants';
 import { supabase } from '../../lib/supabase';
 import { createTestLogger } from '../../lib/testLogger';
+import { generateBotProfile, sampleBotCorrect, BOT_GAME_PARAMS, type BotDifficulty } from '../../lib/botIdentity';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const GRID_COLS = 4;
@@ -23,14 +24,6 @@ const TEST_PAIRS = [
   { source: 'Sun', target: 'Sol' },
   { source: 'Moon', target: 'Luna' },
 ];
-
-// ── Bot config ───────────────────────────────────────────────
-type BotDifficulty = 'easy' | 'medium' | 'hard';
-const BOT_CONFIG: Record<BotDifficulty, { memoryChance: number; flipDelay: number; name: string }> = {
-  easy:   { memoryChance: 0.2, flipDelay: 4000, name: 'ForgetBot' },
-  medium: { memoryChance: 0.55, flipDelay: 2500, name: 'MemBot' },
-  hard:   { memoryChance: 0.85, flipDelay: 1500, name: 'RecallBot' },
-};
 
 // ── Types ────────────────────────────────────────────────────
 interface Card {
@@ -93,7 +86,8 @@ export default function MemoryMatchTestScreen() {
   const botTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const flipAnims = useRef<Animated.Value[]>([]);
   const loggerRef = useRef(createTestLogger('memory-match'));
-  const botConfig = BOT_CONFIG[botDifficulty];
+  const botProfileRef = useRef<ReturnType<typeof generateBotProfile> | null>(null);
+  const botProfile = botProfileRef.current;
 
   const log = useCallback((msg: string) => {
     const ts = new Date().toISOString().slice(11, 23);
@@ -178,6 +172,7 @@ export default function MemoryMatchTestScreen() {
   const startGame = useCallback(async () => {
     initCards();
     await runConnectivityChecks();
+    botProfileRef.current = generateBotProfile(botDifficulty);
     setPhase('countdown');
     log('Countdown started');
     setTimeout(() => {
@@ -186,7 +181,7 @@ export default function MemoryMatchTestScreen() {
       flipStartTime.current = performance.now();
       log('Game started! Your turn.');
     }, 2000);
-  }, [initCards, runConnectivityChecks, log]);
+  }, [initCards, runConnectivityChecks, log, botDifficulty]);
 
   // ── Elapsed timer ─────────────────────────────────────────
   useEffect(() => {
@@ -313,7 +308,8 @@ export default function MemoryMatchTestScreen() {
       }
 
       setBotAttempts(prev => prev + 1);
-      const knowsMatch = Math.random() < botConfig.memoryChance;
+      const profile = botProfileRef.current;
+      const knowsMatch = profile ? sampleBotCorrect(profile.accuracy, profile.kurtosisProfile) : false;
 
       if (knowsMatch) {
         const pairGroups: Record<number, number[]> = {};
@@ -392,10 +388,10 @@ export default function MemoryMatchTestScreen() {
           flipStartTime.current = performance.now();
         }, 1000);
       }
-    }, botConfig.flipDelay);
+    }, BOT_GAME_PARAMS[botDifficulty].memoryFlipDelay);
 
     return () => { if (botTimerRef.current) clearTimeout(botTimerRef.current); };
-  }, [phase, isPlayerTurn, isChecking, cards, botConfig, playerMatches]);
+  }, [phase, isPlayerTurn, isChecking, cards, botDifficulty, playerMatches]);
 
   // ── Setup ─────────────────────────────────────────────────
   if (phase === 'setup') {
@@ -450,7 +446,7 @@ export default function MemoryMatchTestScreen() {
         <Text style={{ fontSize: 14, fontWeight: '600', color: colors.blue.light, marginBottom: 8 }}>TEST MODE</Text>
         <Text style={{ fontSize: 48 }}>🧠</Text>
         <Text style={{ fontSize: 24, fontWeight: '700', color: colors.silver.white, marginTop: 16 }}>Find the pairs!</Text>
-        <Text style={{ ...type.body, marginTop: 8 }}>vs {botConfig.name} — taking turns</Text>
+        <Text style={{ ...type.body, marginTop: 8 }}>vs {botProfile?.name ?? 'Bot'} — taking turns</Text>
         <View style={{ marginTop: 24 }}>
           {statusLog.slice(0, 6).map((msg, i) => (
             <Text key={i} style={{ fontSize: 10, color: colors.silver.mid, fontFamily: 'Courier', marginTop: 2 }}>{msg}</Text>
@@ -480,7 +476,7 @@ export default function MemoryMatchTestScreen() {
             </View>
             <View style={{ alignItems: 'center' }}>
               <Text style={{ fontSize: 36, fontWeight: '800', color: colors.error }}>{botMatches}</Text>
-              <Text style={type.body}>{botConfig.name}</Text>
+              <Text style={type.body}>{botProfile?.name ?? 'Bot'}</Text>
             </View>
           </View>
 
@@ -579,12 +575,12 @@ export default function MemoryMatchTestScreen() {
             {Math.floor(elapsed / 60)}:{(elapsed % 60).toString().padStart(2, '0')}
           </Text>
           <Text style={{ fontSize: 10, color: isPlayerTurn ? colors.success : colors.error }}>
-            {isPlayerTurn ? 'Your Turn' : `${botConfig.name}'s Turn`}
+            {isPlayerTurn ? 'Your Turn' : `${botProfile?.name ?? 'Bot'}'s Turn`}
           </Text>
         </View>
         <View style={{ alignItems: 'center' }}>
           <Text style={{ fontSize: 24, fontWeight: '800', color: colors.error }}>{botMatches}</Text>
-          <Text style={{ fontSize: 10, color: colors.silver.mid }}>{botConfig.name}</Text>
+          <Text style={{ fontSize: 10, color: colors.silver.mid }}>{botProfile?.name ?? 'Bot'}</Text>
         </View>
       </View>
 
