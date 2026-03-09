@@ -13,6 +13,7 @@ import {
   type GameRoom,
 } from '../services/matchmaking';
 import { generatePairs, generatePairsWithDistractors, validateTranslation } from '../services/ollama';
+import { selectPairs, selectPairsForMatch, type LearningGoal } from '../services/wordBank';
 import { saveGameSession } from '../services/gameSession';
 import { updateEloAfterBotGame } from '../services/elo';
 import {
@@ -61,6 +62,32 @@ async function fetchUsername(userId: string): Promise<string> {
     .single();
 
   return data?.username || 'Unknown';
+}
+
+/**
+ * Fetch profile fields needed for pair generation (language prefs, learning goal).
+ */
+async function fetchProfileForPairs(userId: string): Promise<{
+  native_language: string;
+  learning_language: string;
+  learning_goal: LearningGoal;
+}> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('native_language, learning_language, learning_goal')
+    .eq('id', userId)
+    .single();
+
+  const validGoals: LearningGoal[] = ['travel', 'work', 'school', 'culture', 'relationship', 'general'];
+  const goal = data?.learning_goal && validGoals.includes(data.learning_goal as LearningGoal)
+    ? (data.learning_goal as LearningGoal)
+    : 'general';
+
+  return {
+    native_language: data?.native_language || 'en',
+    learning_language: data?.learning_language || 'es',
+    learning_goal: goal,
+  };
 }
 
 export function setupSocketHandlers(io: Server): void {
@@ -210,17 +237,19 @@ export function setupSocketHandlers(io: Server): void {
       });
 
       try {
-        const pairs = room.gameType === 'asteroid'
-          ? await generatePairsWithDistractors('en', 'es', 15, 'medium')
-          : await generatePairs('en', 'es', 15, 'medium');
+        const [p1Profile, p2Profile] = await Promise.all([
+          fetchProfileForPairs(room.player1.userId),
+          fetchProfileForPairs(room.player2!.userId),
+        ]);
+        const fromLang = p1Profile.native_language;
+        const toLang = p1Profile.learning_language;
+        const goals: LearningGoal[] = [p1Profile.learning_goal, p2Profile.learning_goal];
+        const withDistractors = room.gameType === 'asteroid';
+
+        const pairs = selectPairsForMatch(fromLang, toLang, goals, 'medium', 15, withDistractors);
 
         startGame(room.roomId, pairs);
-
-        io.to(room.roomId).emit('gameStart', {
-          roomId: room.roomId,
-          pairs,
-          gameType: room.gameType,
-        });
+        io.to(room.roomId).emit('gameStart', { roomId: room.roomId, pairs, gameType: room.gameType });
       } catch (error) {
         console.error('Failed to start friend game:', error);
         io.to(room.roomId).emit('error', { message: 'Failed to start game' });
@@ -350,6 +379,7 @@ export function setupSocketHandlers(io: Server): void {
         let p1NewElo = endedRoom.player1.elo;
         let p1PlayerElo = endedRoom.player1.elo;
         let p1OpponentElo = p2.elo;
+        let hypotheticalBotChange: number | undefined;
 
         if (isBotMatch) {
           const botResult = await updateEloAfterBotGame(
@@ -360,7 +390,8 @@ export function setupSocketHandlers(io: Server): void {
           );
           p1EloChange = botResult.playerChange;
           p1NewElo = botResult.playerNewElo;
-          p1PlayerElo = botResult.playerNewElo - botResult.playerChange;
+          p1PlayerElo = botResult.playerElo;
+          hypotheticalBotChange = botResult.hypotheticalBotChange;
         } else if (result.eloResult) {
           p1EloChange = result.eloResult.player1Change;
           p1NewElo = result.eloResult.player1NewElo;
@@ -378,6 +409,7 @@ export function setupSocketHandlers(io: Server): void {
           playerElo: p1PlayerElo,
           opponentElo: p1OpponentElo,
           isBotMatch,
+          ...(hypotheticalBotChange !== undefined && { hypotheticalBotChange }),
         });
 
         if (!isBotMatch) {
@@ -428,10 +460,16 @@ export function setupSocketHandlers(io: Server): void {
     gameType: string
   ) => {
     try {
-      const pairs =
-        gameType === 'asteroid'
-          ? await generatePairsWithDistractors('en', 'es', 15, 'medium')
-          : await generatePairs('en', 'es', 15, 'medium');
+      const [p1Profile, p2Profile] = await Promise.all([
+        fetchProfileForPairs(player1.userId),
+        fetchProfileForPairs(player2.userId),
+      ]);
+      const fromLang = p1Profile.native_language;
+      const toLang = p1Profile.learning_language;
+      const goals: LearningGoal[] = [p1Profile.learning_goal, p2Profile.learning_goal];
+      const withDistractors = gameType === 'asteroid';
+
+      const pairs = selectPairsForMatch(fromLang, toLang, goals, 'medium', 15, withDistractors);
 
       startGame(room.roomId, pairs);
 
@@ -463,10 +501,14 @@ export function setupSocketHandlers(io: Server): void {
     gameType: string
   ) => {
     try {
-      const pairs =
-        gameType === 'asteroid'
-          ? await generatePairsWithDistractors('en', 'es', 15, 'medium')
-          : await generatePairs('en', 'es', 15, 'medium');
+      const profile = await fetchProfileForPairs(entry.userId);
+      const fromLang = profile.native_language;
+      const toLang = profile.learning_language;
+      const withDistractors = gameType === 'asteroid';
+
+      const pairs = withDistractors
+        ? selectPairs(fromLang, toLang, profile.learning_goal, 'medium', 15, true)
+        : selectPairs(fromLang, toLang, profile.learning_goal, 'medium', 15, false);
 
       startGame(room.roomId, pairs);
 

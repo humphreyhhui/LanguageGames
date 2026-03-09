@@ -3,7 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '../../lib/stores/authStore';
-import { LANGUAGES } from '../../lib/types';
+import { LANGUAGES, LEARNING_GOALS, type LearningGoal } from '../../lib/types';
 import { colors, radii, type } from '../../lib/theme';
 
 function SettingRow({ label, value, onPress, rightElement }: {
@@ -83,6 +83,19 @@ export default function SettingsScreen() {
     );
   };
 
+  const handleChangeLearningGoal = () => {
+    const goals = Object.keys(LEARNING_GOALS) as LearningGoal[];
+    const options = goals.map((key) => ({
+      text: LEARNING_GOALS[key],
+      onPress: () => updateProfile({ learning_goal: key }),
+    }));
+    Alert.alert(
+      'Why are you learning?',
+      'We\'ll recommend vocabulary relevant to your goal.',
+      [...options, { text: 'Cancel', style: 'cancel' as const }]
+    );
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg.primary }}>
       <ScrollView
@@ -127,6 +140,15 @@ export default function SettingsScreen() {
               label="I'm learning"
               value={LANGUAGES[user?.learning_language || 'es']}
               onPress={() => handleChangeLanguage('learning')}
+            />
+          </SettingSection>
+
+          {/* Learning Goal */}
+          <SettingSection title="Learning Goal">
+            <SettingRow
+              label="Why are you learning?"
+              value={LEARNING_GOALS[(user?.learning_goal as LearningGoal) || 'general']}
+              onPress={handleChangeLearningGoal}
             />
           </SettingSection>
 

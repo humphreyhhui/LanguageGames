@@ -1,5 +1,5 @@
 import { supabase } from '../config';
-import { updateEloAfterGame, checkGameCountBadges, checkStreakBadges } from './elo';
+import { updateEloAfterGame, updateEloAfterBotGame, checkGameCountBadges, checkStreakBadges } from './elo';
 
 // ============================================
 // Save Game Session
@@ -75,6 +75,71 @@ export async function saveGameSession(params: {
   return {
     sessionId: session.id,
     eloResult,
+  };
+}
+
+// ============================================
+// Save Bot Test Game (test mode: contributes to ELO at 75%)
+// ============================================
+
+export async function saveBotTestGame(params: {
+  playerId: string;
+  gameType: string;
+  botElo: number;
+  playerScore: number;
+  botScore: number;
+  durationMs?: number;
+}): Promise<{
+  sessionId: string;
+  playerNewElo: number;
+  playerChange: number;
+  playerElo: number;
+  opponentElo: number;
+  hypotheticalBotChange: number;
+}> {
+  const winnerIdForElo = params.playerScore > params.botScore ? params.playerId : null;
+
+  const { data: session, error } = await supabase
+    .from('game_sessions')
+    .insert({
+      game_type: params.gameType,
+      mode: 'unranked',
+      player1_id: params.playerId,
+      player2_id: null,
+      player1_score: params.playerScore,
+      player2_score: params.botScore,
+      winner_id: params.playerScore > params.botScore ? params.playerId : null,
+      duration_ms: params.durationMs ?? 0,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  const playerWon = params.playerScore > params.botScore;
+  await updateUserStats(
+    params.playerId,
+    params.gameType,
+    params.playerScore,
+    playerWon,
+    params.durationMs ?? 0
+  );
+  await checkGameCountBadges(params.playerId);
+
+  const botResult = await updateEloAfterBotGame(
+    params.playerId,
+    params.gameType,
+    params.botElo,
+    winnerIdForElo
+  );
+
+  return {
+    sessionId: session.id,
+    playerNewElo: botResult.playerNewElo,
+    playerChange: botResult.playerChange,
+    playerElo: botResult.playerElo,
+    opponentElo: params.botElo,
+    hypotheticalBotChange: botResult.hypotheticalBotChange,
   };
 }
 

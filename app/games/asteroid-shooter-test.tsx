@@ -9,6 +9,7 @@ import { SERVER_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/constants
 import { supabase } from '../../lib/supabase';
 import { createTestLogger } from '../../lib/testLogger';
 import { generateBotProfile, sampleBotCorrect, BOT_GAME_PARAMS, type BotDifficulty } from '../../lib/botIdentity';
+import { useAuthStore } from '../../lib/stores/authStore';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const SHIP_SIZE = 48;
@@ -94,7 +95,15 @@ export default function AsteroidShooterTestScreen() {
   const [bullets, setBullets] = useState<Bullet[]>([]);
   const [showHit, setShowHit] = useState<{ correct: boolean; word: string } | null>(null);
   const [gameStats, setGameStats] = useState<GameStats | null>(null);
+  const [eloResult, setEloResult] = useState<{
+    eloChange: number;
+    newElo: number;
+    playerElo: number;
+    opponentElo: number;
+    hypotheticalBotChange: number;
+  } | null>(null);
   const [statusLog, setStatusLog] = useState<string[]>([]);
+  const fetchEloRatings = useAuthStore((s) => s.fetchEloRatings);
 
   // ── Stats refs ───────────────────────────────────────────
   const playerShots = useRef(0);
@@ -419,6 +428,43 @@ export default function AsteroidShooterTestScreen() {
             winner: ps > bs ? 'player' : bs > ps ? 'bot' : 'tie',
           };
           setGameStats(stats);
+
+          const profile = botProfileRef.current;
+          if (profile) {
+            supabase.auth.getSession().then(({ data: { session } }) => {
+              if (session?.access_token) {
+                fetch(`${SERVER_URL}/api/games/report-bot-test`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${session.access_token}`,
+                  },
+                  body: JSON.stringify({
+                    gameType: 'asteroid',
+                    botElo: profile.elo,
+                    playerScore: ps,
+                    botScore: bs,
+                    durationMs: totalTime,
+                  }),
+                })
+                  .then((r) => r.json())
+                  .then((data) => {
+                    if (data.eloChange !== undefined) {
+                      setEloResult({
+                        eloChange: data.eloChange,
+                        newElo: data.newElo,
+                        playerElo: data.playerElo,
+                        opponentElo: data.opponentElo,
+                        hypotheticalBotChange: data.hypotheticalBotChange ?? 0,
+                      });
+                      fetchEloRatings();
+                    }
+                  })
+                  .catch(() => {});
+              }
+            });
+          }
+
           loggerRef.current.endSession(stats).catch(() => {});
           return bs;
         });
@@ -426,7 +472,7 @@ export default function AsteroidShooterTestScreen() {
       });
     }, 100);
     log('Game ended');
-  }, [phase, bestCombo, log]);
+  }, [phase, bestCombo, log, fetchEloRatings]);
 
   useEffect(() => {
     return () => { loggerRef.current.endSession().catch(() => {}); };
@@ -517,6 +563,16 @@ export default function AsteroidShooterTestScreen() {
             <View style={{ alignItems: 'center' }}>
               <Text style={{ fontSize: 36, fontWeight: '800', color: colors.success }}>{playerScore}</Text>
               <Text style={type.body}>You</Text>
+              {eloResult && (
+                <Text style={{ fontSize: 13, color: colors.silver.mid, marginTop: 4 }}>
+                  ELO {eloResult.playerElo}
+                  {eloResult.eloChange !== 0 && (
+                    <Text style={{ color: eloResult.eloChange > 0 ? colors.success : colors.error, fontWeight: '600' }}>
+                      {' '}({eloResult.eloChange > 0 ? '+' : ''}{eloResult.eloChange})
+                    </Text>
+                  )}
+                </Text>
+              )}
             </View>
             <View style={{ alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ fontSize: 20, fontWeight: '600', color: colors.silver.mid }}>vs</Text>
@@ -524,8 +580,27 @@ export default function AsteroidShooterTestScreen() {
             <View style={{ alignItems: 'center' }}>
               <Text style={{ fontSize: 36, fontWeight: '800', color: colors.error }}>{botScore}</Text>
               <Text style={type.body}>{botProfile?.name ?? 'Bot'}</Text>
+              {eloResult && (
+                <Text style={{ fontSize: 13, color: colors.silver.mid, marginTop: 4 }}>
+                  ELO {eloResult.opponentElo}
+                  {eloResult.hypotheticalBotChange !== 0 && (
+                    <Text style={{ color: eloResult.hypotheticalBotChange > 0 ? colors.success : colors.error, fontWeight: '600' }}>
+                      {' '}({eloResult.hypotheticalBotChange > 0 ? '+' : ''}{eloResult.hypotheticalBotChange})
+                    </Text>
+                  )}
+                </Text>
+              )}
             </View>
           </View>
+
+          {eloResult && (
+            <View style={{ ...card, padding: 12, marginTop: 12, alignItems: 'center' }}>
+              <Text style={{ fontSize: 12, color: colors.blue.pale }}>vs Bot, 75% ELO</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.silver.white, marginTop: 4 }}>
+                New rating: {eloResult.newElo}
+              </Text>
+            </View>
+          )}
 
           {gameStats && (
             <>
@@ -577,6 +652,7 @@ export default function AsteroidShooterTestScreen() {
                 setCurrentPairIndex(0);
                 setPlayerScore(0);
                 setBotScore(0);
+                setEloResult(null);
                 setCombo(0);
                 setBestCombo(0);
                 setAsteroids([]);

@@ -85,6 +85,7 @@ export default function LobbyScreen() {
           count: selectedGame === 'match' ? 8 : 15,
           difficulty: 'medium',
           withDistractors: selectedGame === 'asteroid',
+          learningGoal: user?.learning_goal || 'general',
         }),
       });
       const data = await response.json();

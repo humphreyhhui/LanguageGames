@@ -35,6 +35,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         username,
         native_language: 'en',
         learning_language: 'es',
+        learning_goal: 'general',
       });
       if (profileError) throw profileError;
 

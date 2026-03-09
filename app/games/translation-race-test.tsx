@@ -5,6 +5,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { colors, radii, type, card, button, buttonText, input } from '../../lib/theme';
 import { SERVER_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../../lib/constants';
 import { supabase } from '../../lib/supabase';
+import { useAuthStore } from '../../lib/stores/authStore';
 import { createTestLogger } from '../../lib/testLogger';
 import { generateBotProfile, sampleBotCorrect, BOT_GAME_PARAMS, type BotDifficulty } from '../../lib/botIdentity';
 
@@ -80,6 +81,7 @@ interface GameStats {
 
 export default function TranslationRaceTestScreen() {
   const router = useRouter();
+  const fetchEloRatings = useAuthStore((s) => s.fetchEloRatings);
 
   // ── Game state ───────────────────────────────────────────
   const [phase, setPhase] = useState<'setup' | 'countdown' | 'playing' | 'gameover'>('setup');
@@ -95,6 +97,13 @@ export default function TranslationRaceTestScreen() {
   const [results, setResults] = useState<AnswerResult[]>([]);
   const [botActions, setBotActions] = useState<BotAction[]>([]);
   const [gameStats, setGameStats] = useState<GameStats | null>(null);
+  const [eloResult, setEloResult] = useState<{
+    eloChange: number;
+    newElo: number;
+    playerElo: number;
+    opponentElo: number;
+    hypotheticalBotChange: number;
+  } | null>(null);
 
   // ── Latency tracking ─────────────────────────────────────
   const serverLatencies = useRef<number[]>([]);
@@ -415,6 +424,44 @@ export default function TranslationRaceTestScreen() {
           };
 
           setGameStats(stats);
+
+          // Report to server for ELO (75% bot discount)
+          const profile = botProfileRef.current;
+          if (profile) {
+            supabase.auth.getSession().then(({ data: { session } }) => {
+              if (session?.access_token) {
+                fetch(`${SERVER_URL}/api/games/report-bot-test`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${session.access_token}`,
+                  },
+                  body: JSON.stringify({
+                    gameType: 'race',
+                    botElo: profile.elo,
+                    playerScore: playerCorrect,
+                    botScore: finalBotScore,
+                    durationMs: totalTime,
+                  }),
+                })
+                  .then((r) => r.json())
+                  .then((data) => {
+                    if (data.eloChange !== undefined) {
+                      setEloResult({
+                        eloChange: data.eloChange,
+                        newElo: data.newElo,
+                        playerElo: data.playerElo,
+                        opponentElo: data.opponentElo,
+                        hypotheticalBotChange: data.hypotheticalBotChange ?? 0,
+                      });
+                      fetchEloRatings();
+                    }
+                  })
+                  .catch(() => {});
+              }
+            });
+          }
+
           loggerRef.current.endSession(stats).catch(() => {});
           return currentBotActions;
         });
@@ -542,6 +589,16 @@ export default function TranslationRaceTestScreen() {
             <View style={{ alignItems: 'center' }}>
               <Text style={{ fontSize: 36, fontWeight: '800', color: colors.success }}>{correctCount}</Text>
               <Text style={type.body}>You</Text>
+              {eloResult && (
+                <Text style={{ fontSize: 13, color: colors.silver.mid, marginTop: 4 }}>
+                  ELO {eloResult.playerElo}
+                  {eloResult.eloChange !== 0 && (
+                    <Text style={{ color: eloResult.eloChange > 0 ? colors.success : colors.error, fontWeight: '600' }}>
+                      {' '}({eloResult.eloChange > 0 ? '+' : ''}{eloResult.eloChange})
+                    </Text>
+                  )}
+                </Text>
+              )}
             </View>
             <View style={{ alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ fontSize: 20, fontWeight: '600', color: colors.silver.mid }}>vs</Text>
@@ -549,8 +606,27 @@ export default function TranslationRaceTestScreen() {
             <View style={{ alignItems: 'center' }}>
               <Text style={{ fontSize: 36, fontWeight: '800', color: colors.error }}>{botScore}</Text>
               <Text style={type.body}>{botProfile?.name ?? 'Bot'}</Text>
+              {eloResult && (
+                <Text style={{ fontSize: 13, color: colors.silver.mid, marginTop: 4 }}>
+                  ELO {eloResult.opponentElo}
+                  {eloResult.hypotheticalBotChange !== 0 && (
+                    <Text style={{ color: eloResult.hypotheticalBotChange > 0 ? colors.success : colors.error, fontWeight: '600' }}>
+                      {' '}({eloResult.hypotheticalBotChange > 0 ? '+' : ''}{eloResult.hypotheticalBotChange})
+                    </Text>
+                  )}
+                </Text>
+              )}
             </View>
           </View>
+
+          {eloResult && (
+            <View style={{ ...card, padding: 12, marginTop: 12, alignItems: 'center' }}>
+              <Text style={{ fontSize: 12, color: colors.blue.pale }}>vs Bot, 75% ELO</Text>
+              <Text style={{ fontSize: 14, fontWeight: '600', color: colors.silver.white, marginTop: 4 }}>
+                New rating: {eloResult.newElo}
+              </Text>
+            </View>
+          )}
 
           {/* Player Stats */}
           {gameStats && (
@@ -632,6 +708,7 @@ export default function TranslationRaceTestScreen() {
                 setResults([]);
                 setBotActions([]);
                 setGameStats(null);
+                setEloResult(null);
                 setTimeRemaining(TIME_LIMIT);
                 setStatusLog([]);
                 serverLatencies.current = [];

@@ -2,12 +2,24 @@
 // Database / Domain Types
 // ============================================
 
+export type LearningGoal = 'travel' | 'work' | 'school' | 'culture' | 'relationship' | 'general';
+
+export const LEARNING_GOALS: Record<LearningGoal, string> = {
+  travel: 'Travel & Tourism',
+  work: 'Work & Business',
+  school: 'School & Academics',
+  culture: 'Culture & Entertainment',
+  relationship: 'Relationships & Family',
+  general: 'General / Just for Fun',
+};
+
 export interface Profile {
   id: string;
   username: string;
   avatar_url: string | null;
   native_language: string;
   learning_language: string;
+  learning_goal: LearningGoal;
   badge_frame: string | null;
   created_at: string;
 }
@@ -141,6 +153,7 @@ export interface SocketEvents {
     playerElo: number;
     opponentElo: number;
     isBotMatch?: boolean;
+    hypotheticalBotChange?: number;
   };
   opponentJoined: { username: string; elo: number };
   error: { message: string };

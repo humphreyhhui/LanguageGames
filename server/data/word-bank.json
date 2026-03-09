@@ -1,0 +1,400 @@
+{
+  "en-es": {
+    "greetings": {
+      "easy": [
+        {"source": "hello", "target": "hola", "distractors": ["holo", "hala", "holas"]},
+        {"source": "goodbye", "target": "adiós", "distractors": ["hasta", "buenos", "luego"]},
+        {"source": "thank you", "target": "gracias", "distractors": ["gracia", "gratis", "grande"]},
+        {"source": "please", "target": "por favor", "distractors": ["por eso", "favor", "por fin"]},
+        {"source": "good morning", "target": "buenos días", "distractors": ["buenas", "día", "bueno"]},
+        {"source": "good night", "target": "buenas noches", "distractors": ["noche", "bueno", "noches"]},
+        {"source": "how are you", "target": "¿cómo estás?", "distractors": ["cómo", "estás", "está"]},
+        {"source": "nice to meet you", "target": "mucho gusto", "distractors": ["mucho", "gusto", "gusta"]}
+      ],
+      "medium": [
+        {"source": "I would like to introduce myself", "target": "me gustaría presentarme", "distractors": ["presentar", "gustaría", "introducir"]},
+        {"source": "it was nice meeting you", "target": "fue un placer conocerte", "distractors": ["placer", "conocer", "conocerte"]},
+        {"source": "see you tomorrow", "target": "hasta mañana", "distractors": ["mañana", "hasta", "luego"]},
+        {"source": "have a good day", "target": "que tengas un buen día", "distractors": ["tengas", "buen", "día"]}
+      ],
+      "hard": [
+        {"source": "I hope we can stay in touch", "target": "espero que podamos mantener el contacto", "distractors": ["mantener", "contacto", "espero"]}
+      ]
+    },
+    "food_drink": {
+      "easy": [
+        {"source": "water", "target": "agua", "distractors": ["aguas", "agua", "hago"]},
+        {"source": "food", "target": "comida", "distractors": ["comer", "comedor", "comido"]},
+        {"source": "bread", "target": "pan", "distractors": ["pana", "pano", "panes"]},
+        {"source": "milk", "target": "leche", "distractors": ["lecho", "lecha", "lechero"]},
+        {"source": "coffee", "target": "café", "distractors": ["cafés", "cafetera", "café"]},
+        {"source": "restaurant", "target": "restaurante", "distractors": ["restaurar", "resto", "restaurantes"]},
+        {"source": "menu", "target": "menú", "distractors": ["menos", "menudo", "menú"]},
+        {"source": "bill", "target": "cuenta", "distractors": ["cuento", "cuento", "cuentas"]}
+      ],
+      "medium": [
+        {"source": "I would like to order", "target": "quisiera ordenar", "distractors": ["ordenar", "quisiera", "orden"]},
+        {"source": "the check please", "target": "la cuenta por favor", "distractors": ["cuenta", "favor", "por favor"]},
+        {"source": "is this dish spicy", "target": "¿este plato es picante?", "distractors": ["plato", "picante", "picar"]},
+        {"source": "I am vegetarian", "target": "soy vegetariano", "distractors": ["vegetariano", "vegetal", "vegetales"]}
+      ],
+      "hard": [
+        {"source": "could you recommend a local specialty", "target": "¿podría recomendarme una especialidad local?", "distractors": ["especialidad", "local", "recomendar"]}
+      ]
+    },
+    "travel_directions": {
+      "easy": [
+        {"source": "airport", "target": "aeropuerto", "distractors": ["aerolínea", "avión", "estación"]},
+        {"source": "train station", "target": "estación de tren", "distractors": ["tren", "estación", "autobús"]},
+        {"source": "left", "target": "izquierda", "distractors": ["derecha", "izquierdo", "izquierdas"]},
+        {"source": "right", "target": "derecha", "distractors": ["derecho", "izquierda", "derechas"]},
+        {"source": "straight", "target": "derecho", "distractors": ["recto", "derecha", "directo"]},
+        {"source": "map", "target": "mapa", "distractors": ["mapas", "mapa", "calle"]},
+        {"source": "hotel", "target": "hotel", "distractors": ["hostal", "casa", "habitación"]},
+        {"source": "passport", "target": "pasaporte", "distractors": ["pasaje", "paso", "puerto"]}
+      ],
+      "medium": [
+        {"source": "where is the nearest bus stop", "target": "¿dónde está la parada de autobús más cercana?", "distractors": ["parada", "autobús", "cercana"]},
+        {"source": "how do I get to the museum", "target": "¿cómo llego al museo?", "distractors": ["llego", "museo", "llegar"]},
+        {"source": "is it far from here", "target": "¿está lejos de aquí?", "distractors": ["lejos", "aquí", "cerca"]},
+        {"source": "I need a taxi", "target": "necesito un taxi", "distractors": ["taxi", "necesito", "necesita"]}
+      ],
+      "hard": [
+        {"source": "could you point me toward the main square", "target": "¿podría indicarme el camino a la plaza principal?", "distractors": ["plaza", "principal", "indicar"]}
+      ]
+    },
+    "shopping_money": {
+      "easy": [
+        {"source": "money", "target": "dinero", "distractors": ["dineros", "dinero", "moneda"]},
+        {"source": "price", "target": "precio", "distractors": ["precios", "preciar", "precioso"]},
+        {"source": "cheap", "target": "barato", "distractors": ["caro", "barata", "baratos"]},
+        {"source": "expensive", "target": "caro", "distractors": ["cara", "barato", "caros"]},
+        {"source": "store", "target": "tienda", "distractors": ["tiendas", "tiendo", "tiendo"]},
+        {"source": "credit card", "target": "tarjeta de crédito", "distractors": ["tarjeta", "crédito", "créditos"]},
+        {"source": "cash", "target": "efectivo", "distractors": ["efecto", "efectivos", "efectiva"]},
+        {"source": "sale", "target": "rebaja", "distractors": ["rebajar", "rebajas", "rebajado"]}
+      ],
+      "medium": [
+        {"source": "how much does this cost", "target": "¿cuánto cuesta esto?", "distractors": ["cuesta", "cuánto", "costar"]},
+        {"source": "do you have a discount", "target": "¿tienen descuento?", "distractors": ["descuento", "tienen", "descontar"]},
+        {"source": "I am just looking", "target": "solo estoy mirando", "distractors": ["mirando", "solo", "mirar"]},
+        {"source": "can I pay by card", "target": "¿puedo pagar con tarjeta?", "distractors": ["pagar", "tarjeta", "puedo"]}
+      ],
+      "hard": [
+        {"source": "is there a warranty on this product", "target": "¿hay garantía en este producto?", "distractors": ["garantía", "producto", "garantizar"]}
+      ]
+    },
+    "business_work": {
+      "easy": [
+        {"source": "meeting", "target": "reunión", "distractors": ["reunir", "reuniones", "reunido"]},
+        {"source": "email", "target": "correo electrónico", "distractors": ["correo", "electrónico", "correos"]},
+        {"source": "office", "target": "oficina", "distractors": ["oficial", "oficinas", "oficinista"]},
+        {"source": "schedule", "target": "horario", "distractors": ["hora", "horarios", "horaria"]},
+        {"source": "deadline", "target": "fecha límite", "distractors": ["fecha", "límite", "fechas"]},
+        {"source": "contract", "target": "contrato", "distractors": ["contratar", "contratos", "contratado"]},
+        {"source": "boss", "target": "jefe", "distractors": ["jefa", "jefes", "jefatura"]},
+        {"source": "colleague", "target": "colega", "distractors": ["colegio", "colegas", "colegial"]}
+      ],
+      "medium": [
+        {"source": "when is the next meeting", "target": "¿cuándo es la próxima reunión?", "distractors": ["próxima", "reunión", "cuándo"]},
+        {"source": "I need to send a report", "target": "necesito enviar un informe", "distractors": ["enviar", "informe", "necesito"]},
+        {"source": "can we reschedule", "target": "¿podemos reprogramar?", "distractors": ["reprogramar", "podemos", "programar"]},
+        {"source": "the project is due Friday", "target": "el proyecto vence el viernes", "distractors": ["proyecto", "vence", "viernes"]}
+      ],
+      "hard": [
+        {"source": "we should discuss the quarterly objectives", "target": "deberíamos discutir los objetivos trimestrales", "distractors": ["trimestrales", "objetivos", "discutir"]}
+      ]
+    },
+    "academics": {
+      "easy": [
+        {"source": "book", "target": "libro", "distractors": ["libros", "libre", "librería"]},
+        {"source": "school", "target": "escuela", "distractors": ["escolar", "escuelas", "escolar"]},
+        {"source": "student", "target": "estudiante", "distractors": ["estudiar", "estudiantes", "estudio"]},
+        {"source": "teacher", "target": "profesor", "distractors": ["profesora", "profesores", "profesión"]},
+        {"source": "homework", "target": "tarea", "distractors": ["tareas", "tardar", "tarde"]},
+        {"source": "exam", "target": "examen", "distractors": ["exámenes", "examinar", "examinado"]},
+        {"source": "class", "target": "clase", "distractors": ["clases", "clasificar", "claro"]},
+        {"source": "grade", "target": "nota", "distractors": ["notas", "notar", "noticia"]}
+      ],
+      "medium": [
+        {"source": "I have a question about the assignment", "target": "tengo una pregunta sobre la tarea", "distractors": ["pregunta", "tarea", "tengo"]},
+        {"source": "when is the exam", "target": "¿cuándo es el examen?", "distractors": ["examen", "cuándo", "exámenes"]},
+        {"source": "I need to study more", "target": "necesito estudiar más", "distractors": ["estudiar", "necesito", "estudio"]},
+        {"source": "can you explain that again", "target": "¿puedes explicar eso de nuevo?", "distractors": ["explicar", "nuevo", "puedes"]}
+      ],
+      "hard": [
+        {"source": "the syllabus indicates three required readings", "target": "el programa indica tres lecturas obligatorias", "distractors": ["lecturas", "obligatorias", "programa"]}
+      ]
+    },
+    "family_relationships": {
+      "easy": [
+        {"source": "family", "target": "familia", "distractors": ["familiar", "familias", "famoso"]},
+        {"source": "mother", "target": "madre", "distractors": ["madres", "padre", "mamá"]},
+        {"source": "father", "target": "padre", "distractors": ["padres", "madre", "padrino"]},
+        {"source": "brother", "target": "hermano", "distractors": ["hermana", "hermanos", "hermanas"]},
+        {"source": "sister", "target": "hermana", "distractors": ["hermano", "hermanas", "hermanos"]},
+        {"source": "friend", "target": "amigo", "distractors": ["amiga", "amigos", "amistad"]},
+        {"source": "baby", "target": "bebé", "distractors": ["bebés", "bebe", "bebida"]},
+        {"source": "grandmother", "target": "abuela", "distractors": ["abuelo", "abuelas", "abuelos"]}
+      ],
+      "medium": [
+        {"source": "how many siblings do you have", "target": "¿cuántos hermanos tienes?", "distractors": ["hermanos", "tienes", "cuántos"]},
+        {"source": "my parents live in Madrid", "target": "mis padres viven en Madrid", "distractors": ["padres", "viven", "Madrid"]},
+        {"source": "I miss my family", "target": "extraño a mi familia", "distractors": ["extraño", "familia", "extrañar"]},
+        {"source": "we are getting married next year", "target": "nos casamos el año que viene", "distractors": ["casamos", "año", "viene"]}
+      ],
+      "hard": [
+        {"source": "she is my mother in law", "target": "ella es mi suegra", "distractors": ["suegra", "suegro", "suegros"]}
+      ]
+    },
+    "emotions": {
+      "easy": [
+        {"source": "happy", "target": "feliz", "distractors": ["felices", "felicidad", "felizmente"]},
+        {"source": "sad", "target": "triste", "distractors": ["tristes", "tristeza", "tristemente"]},
+        {"source": "angry", "target": "enojado", "distractors": ["enojar", "enojada", "enojo"]},
+        {"source": "tired", "target": "cansado", "distractors": ["cansada", "cansar", "cansancio"]},
+        {"source": "excited", "target": "emocionado", "distractors": ["emoción", "emocionada", "emocionar"]},
+        {"source": "nervous", "target": "nervioso", "distractors": ["nerviosa", "nervios", "nerviosamente"]},
+        {"source": "love", "target": "amor", "distractors": ["amar", "amores", "amado"]},
+        {"source": "fear", "target": "miedo", "distractors": ["medir", "miedos", "medido"]}
+      ],
+      "medium": [
+        {"source": "I feel a little anxious", "target": "me siento un poco ansioso", "distractors": ["ansioso", "siento", "poco"]},
+        {"source": "that makes me very happy", "target": "eso me hace muy feliz", "distractors": ["hace", "feliz", "muy"]},
+        {"source": "why are you upset", "target": "¿por qué estás molesto?", "distractors": ["molesto", "estás", "por qué"]},
+        {"source": "she seems worried", "target": "ella parece preocupada", "distractors": ["preocupada", "parece", "preocupar"]}
+      ],
+      "hard": [
+        {"source": "I was overwhelmed with emotion", "target": "estaba abrumado por la emoción", "distractors": ["abrumado", "emoción", "estaba"]}
+      ]
+    },
+    "household": {
+      "easy": [
+        {"source": "house", "target": "casa", "distractors": ["casas", "caso", "casero"]},
+        {"source": "room", "target": "habitación", "distractors": ["habitaciones", "habitar", "habitual"]},
+        {"source": "kitchen", "target": "cocina", "distractors": ["cocinar", "cocinas", "cocinero"]},
+        {"source": "bathroom", "target": "baño", "distractors": ["baños", "bañar", "bañera"]},
+        {"source": "bed", "target": "cama", "distractors": ["camas", "caminar", "camino"]},
+        {"source": "table", "target": "mesa", "distractors": ["mesas", "mesero", "meses"]},
+        {"source": "chair", "target": "silla", "distractors": ["sillas", "sillar", "sillón"]},
+        {"source": "door", "target": "puerta", "distractors": ["puertas", "puerto", "puerto"]}
+      ],
+      "medium": [
+        {"source": "where is the bathroom", "target": "¿dónde está el baño?", "distractors": ["baño", "dónde", "está"]},
+        {"source": "the keys are on the table", "target": "las llaves están en la mesa", "distractors": ["llaves", "mesa", "están"]},
+        {"source": "I need to clean my room", "target": "necesito limpiar mi habitación", "distractors": ["limpiar", "habitación", "necesito"]},
+        {"source": "turn off the light please", "target": "apaga la luz por favor", "distractors": ["apaga", "luz", "favor"]}
+      ],
+      "hard": [
+        {"source": "the washing machine is broken", "target": "la lavadora está rota", "distractors": ["lavadora", "rota", "está"]}
+      ]
+    },
+    "nature_weather": {
+      "easy": [
+        {"source": "sun", "target": "sol", "distractors": ["solo", "solar", "soles"]},
+        {"source": "rain", "target": "lluvia", "distractors": ["lluvias", "llover", "llovido"]},
+        {"source": "cloud", "target": "nube", "distractors": ["nubes", "nublado", "nublar"]},
+        {"source": "wind", "target": "viento", "distractors": ["vientos", "ventana", "ventana"]},
+        {"source": "tree", "target": "árbol", "distractors": ["árboles", "arbol", "arboleda"]},
+        {"source": "flower", "target": "flor", "distractors": ["flores", "florido", "florecer"]},
+        {"source": "mountain", "target": "montaña", "distractors": ["montañas", "montar", "monte"]},
+        {"source": "beach", "target": "playa", "distractors": ["playas", "jugar", "playero"]}
+      ],
+      "medium": [
+        {"source": "what is the weather like today", "target": "¿qué tiempo hace hoy?", "distractors": ["tiempo", "hace", "hoy"]},
+        {"source": "it is going to rain", "target": "va a llover", "distractors": ["llover", "va", "lluvia"]},
+        {"source": "the sun is very strong", "target": "el sol está muy fuerte", "distractors": ["sol", "fuerte", "está"]},
+        {"source": "I love the mountains", "target": "me encantan las montañas", "distractors": ["encantan", "montañas", "encantar"]}
+      ],
+      "hard": [
+        {"source": "there is a storm warning for tonight", "target": "hay aviso de tormenta para esta noche", "distractors": ["tormenta", "aviso", "noche"]}
+      ]
+    },
+    "health_body": {
+      "easy": [
+        {"source": "head", "target": "cabeza", "distractors": ["cabezas", "cabecear", "cabezal"]},
+        {"source": "hand", "target": "mano", "distractors": ["manos", "manar", "manía"]},
+        {"source": "foot", "target": "pie", "distractors": ["pies", "pied", "pierna"]},
+        {"source": "doctor", "target": "médico", "distractors": ["médica", "medicina", "medicar"]},
+        {"source": "hospital", "target": "hospital", "distractors": ["hospitales", "hospitalidad", "hospedar"]},
+        {"source": "medicine", "target": "medicina", "distractors": ["medicinas", "médico", "medicinal"]},
+        {"source": "pain", "target": "dolor", "distractors": ["dolores", "doler", "dolido"]},
+        {"source": "healthy", "target": "saludable", "distractors": ["salud", "saludar", "saludos"]}
+      ],
+      "medium": [
+        {"source": "I have a headache", "target": "tengo dolor de cabeza", "distractors": ["cabeza", "dolor", "tengo"]},
+        {"source": "where is the pharmacy", "target": "¿dónde está la farmacia?", "distractors": ["farmacia", "dónde", "está"]},
+        {"source": "I need to see a doctor", "target": "necesito ver a un médico", "distractors": ["médico", "necesito", "ver"]},
+        {"source": "my stomach hurts", "target": "me duele el estómago", "distractors": ["estómago", "duele", "duele"]}
+      ],
+      "hard": [
+        {"source": "I have an appointment with the specialist", "target": "tengo una cita con el especialista", "distractors": ["especialista", "cita", "tengo"]}
+      ]
+    },
+    "hobbies_entertainment": {
+      "easy": [
+        {"source": "movie", "target": "película", "distractors": ["películas", "pelicular", "peliculero"]},
+        {"source": "music", "target": "música", "distractors": ["músicas", "musical", "músico"]},
+        {"source": "game", "target": "juego", "distractors": ["juegos", "jugar", "jugado"]},
+        {"source": "dance", "target": "baile", "distractors": ["bailes", "bailar", "bailado"]},
+        {"source": "sport", "target": "deporte", "distractors": ["deportes", "deportivo", "deportista"]},
+        {"source": "book", "target": "libro", "distractors": ["libros", "libre", "librería"]},
+        {"source": "concert", "target": "concierto", "distractors": ["conciertos", "concertar", "concertado"]},
+        {"source": "theater", "target": "teatro", "distractors": ["teatros", "teatral", "teatralidad"]}
+      ],
+      "medium": [
+        {"source": "what kind of music do you like", "target": "¿qué tipo de música te gusta?", "distractors": ["música", "gusta", "tipo"]},
+        {"source": "I want to see a movie", "target": "quiero ver una película", "distractors": ["película", "quiero", "ver"]},
+        {"source": "do you like to dance", "target": "¿te gusta bailar?", "distractors": ["bailar", "gusta", "gusta"]},
+        {"source": "the concert was amazing", "target": "el concierto fue increíble", "distractors": ["concierto", "increíble", "fue"]}
+      ],
+      "hard": [
+        {"source": "we should go to the theater sometime", "target": "deberíamos ir al teatro alguna vez", "distractors": ["teatro", "deberíamos", "alguna"]}
+      ]
+    },
+    "colors_numbers": {
+      "easy": [
+        {"source": "red", "target": "rojo", "distractors": ["rojos", "roja", "rojizo"]},
+        {"source": "blue", "target": "azul", "distractors": ["azules", "azulado", "azulejo"]},
+        {"source": "green", "target": "verde", "distractors": ["verdes", "verdor", "verdoso"]},
+        {"source": "one", "target": "uno", "distractors": ["una", "unos", "unas"]},
+        {"source": "two", "target": "dos", "distractors": ["doce", "docena", "doble"]},
+        {"source": "three", "target": "tres", "distractors": ["trece", "treinta", "tercero"]},
+        {"source": "ten", "target": "diez", "distractors": ["dieciséis", "décimo", "década"]},
+        {"source": "hundred", "target": "cien", "distractors": ["ciento", "cientos", "centavo"]}
+      ],
+      "medium": [
+        {"source": "how much is two plus two", "target": "¿cuánto es dos más dos?", "distractors": ["más", "dos", "cuánto"]},
+        {"source": "I need twenty euros", "target": "necesito veinte euros", "distractors": ["veinte", "euros", "necesito"]},
+        {"source": "what is your favorite color", "target": "¿cuál es tu color favorito?", "distractors": ["color", "favorito", "cuál"]},
+        {"source": "the price is fifty dollars", "target": "el precio es cincuenta dólares", "distractors": ["cincuenta", "dólares", "precio"]}
+      ],
+      "hard": [
+        {"source": "the total comes to three hundred and forty five", "target": "el total asciende a trescientos cuarenta y cinco", "distractors": ["asciende", "trescientos", "total"]}
+      ]
+    },
+    "time_dates": {
+      "easy": [
+        {"source": "time", "target": "tiempo", "distractors": ["tiempos", "temporada", "temporal"]},
+        {"source": "day", "target": "día", "distractors": ["días", "diario", "diaria"]},
+        {"source": "night", "target": "noche", "distractors": ["noches", "nocturno", "nocturna"]},
+        {"source": "today", "target": "hoy", "distractors": ["ayer", "mañana", "hoy"]},
+        {"source": "tomorrow", "target": "mañana", "distractors": ["mañanas", "mañanero", "mañanera"]},
+        {"source": "week", "target": "semana", "distractors": ["semanas", "semanal", "semanario"]},
+        {"source": "month", "target": "mes", "distractors": ["meses", "mesa", "mensual"]},
+        {"source": "year", "target": "año", "distractors": ["años", "añadir", "añejo"]}
+      ],
+      "medium": [
+        {"source": "what time is it", "target": "¿qué hora es?", "distractors": ["hora", "es", "qué"]},
+        {"source": "see you next week", "target": "hasta la próxima semana", "distractors": ["próxima", "semana", "hasta"]},
+        {"source": "when is your birthday", "target": "¿cuándo es tu cumpleaños?", "distractors": ["cumpleaños", "cuándo", "es"]},
+        {"source": "I will be there in an hour", "target": "estaré ahí en una hora", "distractors": ["estaré", "hora", "ahí"]}
+      ],
+      "hard": [
+        {"source": "the meeting has been rescheduled to next Tuesday", "target": "la reunión se ha reprogramado para el próximo martes", "distractors": ["reprogramado", "martes", "reunión"]}
+      ]
+    },
+    "animals": {
+      "easy": [
+        {"source": "cat", "target": "gato", "distractors": ["gatos", "gata", "gatito"]},
+        {"source": "dog", "target": "perro", "distractors": ["perros", "perra", "perrito"]},
+        {"source": "bird", "target": "pájaro", "distractors": ["pájaros", "pajarito", "pajarera"]},
+        {"source": "fish", "target": "pez", "distractors": ["peces", "pescado", "pescar"]},
+        {"source": "horse", "target": "caballo", "distractors": ["caballos", "caballero", "caballería"]},
+        {"source": "cow", "target": "vaca", "distractors": ["vacas", "vacuno", "vacuno"]},
+        {"source": "pig", "target": "cerdo", "distractors": ["cerdos", "cerda", "cerdo"]},
+        {"source": "mouse", "target": "ratón", "distractors": ["ratones", "rata", "ratonera"]}
+      ],
+      "medium": [
+        {"source": "do you have any pets", "target": "¿tienes mascotas?", "distractors": ["mascotas", "tienes", "mascota"]},
+        {"source": "my dog is very friendly", "target": "mi perro es muy amigable", "distractors": ["perro", "amigable", "muy"]},
+        {"source": "I am afraid of spiders", "target": "le tengo miedo a las arañas", "distractors": ["arañas", "miedo", "tengo"]},
+        {"source": "the cat is sleeping", "target": "el gato está durmiendo", "distractors": ["gato", "durmiendo", "está"]}
+      ],
+      "hard": [
+        {"source": "we saw dolphins at the aquarium", "target": "vimos delfines en el acuario", "distractors": ["delfines", "acuario", "vimos"]}
+      ]
+    }
+  },
+  "en-fr": {
+    "greetings": {
+      "easy": [
+        {"source": "hello", "target": "bonjour", "distractors": ["bonsoir", "bon", "jour"]},
+        {"source": "goodbye", "target": "au revoir", "distractors": ["revoir", "voir", "revu"]},
+        {"source": "thank you", "target": "merci", "distractors": ["mercis", "merci", "merci beaucoup"]},
+        {"source": "please", "target": "s'il vous plaît", "distractors": ["plait", "vous", "s'il"]}
+      ],
+      "medium": [],
+      "hard": []
+    },
+    "food_drink": {
+      "easy": [
+        {"source": "water", "target": "eau", "distractors": ["eaux", "eau", "eau"]},
+        {"source": "bread", "target": "pain", "distractors": ["pains", "pain", "peine"]},
+        {"source": "coffee", "target": "café", "distractors": ["cafés", "café", "cafés"]}
+      ],
+      "medium": [],
+      "hard": []
+    },
+    "travel_directions": {
+      "easy": [
+        {"source": "airport", "target": "aéroport", "distractors": ["avion", "gare", "train"]},
+        {"source": "left", "target": "gauche", "distractors": ["droite", "gauche", "gauches"]}
+      ],
+      "medium": [],
+      "hard": []
+    },
+    "shopping_money": {"easy": [], "medium": [], "hard": []},
+    "business_work": {"easy": [], "medium": [], "hard": []},
+    "academics": {"easy": [], "medium": [], "hard": []},
+    "family_relationships": {"easy": [], "medium": [], "hard": []},
+    "emotions": {"easy": [], "medium": [], "hard": []},
+    "household": {"easy": [], "medium": [], "hard": []},
+    "nature_weather": {"easy": [], "medium": [], "hard": []},
+    "health_body": {"easy": [], "medium": [], "hard": []},
+    "hobbies_entertainment": {"easy": [], "medium": [], "hard": []},
+    "colors_numbers": {"easy": [], "medium": [], "hard": []},
+    "time_dates": {"easy": [], "medium": [], "hard": []},
+    "animals": {"easy": [], "medium": [], "hard": []}
+  },
+  "en-de": {
+    "greetings": {
+      "easy": [
+        {"source": "hello", "target": "hallo", "distractors": ["hallo", "halo", "hallo"]},
+        {"source": "goodbye", "target": "auf Wiedersehen", "distractors": ["wieder", "sehen", "wiedersehen"]},
+        {"source": "thank you", "target": "danke", "distractors": ["danke", "dank", "danken"]},
+        {"source": "please", "target": "bitte", "distractors": ["bitte", "bitten", "bitte"]}
+      ],
+      "medium": [],
+      "hard": []
+    },
+    "food_drink": {
+      "easy": [
+        {"source": "water", "target": "Wasser", "distractors": ["Wasser", "wässrig", "Wässer"]},
+        {"source": "bread", "target": "Brot", "distractors": ["Brot", "Brote", "brot"]}
+      ],
+      "medium": [],
+      "hard": []
+    },
+    "travel_directions": {
+      "easy": [
+        {"source": "airport", "target": "Flughafen", "distractors": ["Flug", "Hafen", "Flugzeug"]},
+        {"source": "left", "target": "links", "distractors": ["rechts", "links", "link"]}
+      ],
+      "medium": [],
+      "hard": []
+    },
+    "shopping_money": {"easy": [], "medium": [], "hard": []},
+    "business_work": {"easy": [], "medium": [], "hard": []},
+    "academics": {"easy": [], "medium": [], "hard": []},
+    "family_relationships": {"easy": [], "medium": [], "hard": []},
+    "emotions": {"easy": [], "medium": [], "hard": []},
+    "household": {"easy": [], "medium": [], "hard": []},
+    "nature_weather": {"easy": [], "medium": [], "hard": []},
+    "health_body": {"easy": [], "medium": [], "hard": []},
+    "hobbies_entertainment": {"easy": [], "medium": [], "hard": []},
+    "colors_numbers": {"easy": [], "medium": [], "hard": []},
+    "time_dates": {"easy": [], "medium": [], "hard": []},
+    "animals": {"easy": [], "medium": [], "hard": []}
+  }
+}

@@ -260,7 +260,20 @@ export async function updateEloAfterBotGame(
 
   await checkEloBasedBadges(playerId, gameType, playerNewElo);
 
-  return { playerNewElo, playerChange };
+  // Hypothetical bot ELO change (for display only; bot has no DB row)
+  const botResult: 0 | 0.5 | 1 =
+    winnerId === null ? 0.5 : winnerId === playerId ? 0 : 1;
+  const botK = ELO_K_ESTABLISHED; // Use established K for hypothetical bot
+  const rawBotNewElo = calculateNewElo(botElo, playerElo, botResult, botK);
+  const rawBotChange = rawBotNewElo - botElo;
+  const hypotheticalBotChange = Math.round(rawBotChange * BOT_ELO_DISCOUNT);
+
+  return {
+    playerNewElo,
+    playerChange,
+    playerElo,
+    hypotheticalBotChange,
+  };
 }
 
 // ============================================
